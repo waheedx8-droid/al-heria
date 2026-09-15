@@ -1,8 +1,8 @@
 {
-  "name": "SHAHBA ROSE",
-  "short_name": "ROSE",
-  "start_url": "/a/",
-  "scope": "/waheed/",
+  "name": "AL HERIA",
+  "short_name": "al-heria",
+  "start_url": "/al-heria/",
+  "scope": "/al-heria/",
   "display": "standalone",
   "background_color": "#ebe2e2",
   "theme_color": "#e6e6e6",
