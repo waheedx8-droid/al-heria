@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مجمع صالات الحرية - عقد الحجز والتنظيم</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+.main-table input.en-num, 
+.readonly-field.en-num,
+.deposit-row input.en-num {
+    min-width: 70px;
+    max-width: 100%;
+    text-overflow: clip; /* لمنع ظهور نقاط الإخفاء وجعل الرقم يظهر بالكامل أو يتداخل بوضوح */
+    direction: ltr !important; /* ضمان اتجاه الأرقام الإنجليزية من اليسار لليمين */
+    text-align: right;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background-color: #fef2f5; padding: 10px; color: #000; touch-action: manipulation; }
+.page { 
+    background: #fff; 
+    width: 100%; 
+    max-width: 480px; 
+    min-height: auto; 
+    padding: 15px; 
+    margin: 0 auto 20px auto; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+    position: relative; 
+}
+.contract-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #2c3e50;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    position: relative;
+}
+.contract-header .header-spacer {
+    width: 60px; /* عنصر لموازنة التوسيط بدقة */
+}
+.contract-header .brand-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #2c3e50;
+    text-align: center;
+    flex: 1;}
+.contract-header .logo-img {
+    max-height: 75px;
+    max-width: 200px;
+    object-fit: contain;}
+.info-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: 13px; }
+.info-row { display: flex; align-items: center; width: 100%; gap: 10px; }
+.info-row label { min-width: 90px; font-weight: bold; font-size: 12px; }
+.info-row input { flex: 1; border: none; border-bottom: 1px dotted #000; outline: none; padding: 2px 4px; font-size: 13px; width: 100%; }
+.main-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px; overflow-x: auto; display: block; }
+.main-table th, .main-table td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; }
+.main-table th { background-color: #f8f9fa; text-align: center; }
+.signatures { margin-top: 10px; }
+.signatures .info-row { margin-bottom: 6px; }
+.deposit-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.deposit-row .info-row { width: 100%; margin-bottom: 0; }
+.services-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 5px; }
+.services-table th, .services-table td { border: 1px solid #000; padding: 4px 6px; text-align: center; vertical-align: middle; }
+.services-table th { background-color: #f8f9fa; }
+.checkbox-cell { text-align: right !important; display: flex; align-items: center; gap: 6px; }
+.checkbox-cell input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+input, span, td, div { font-family: Arial, 'Segoe UI', sans-serif !important; }
+.en-num { direction: ltr !important; text-align: center; }
+.input-inline { border: none; border-bottom: 1px dotted #000; outline: none; width: 100%; background: transparent; font-size: 13px; }
+.readonly-field { background-color: #f9f9f9; font-weight: bold; color: #2c3e50; }
+.actions-bar {
+    position: relative;
+    top: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+    text-align: center;
+    margin: 0 auto 15px auto;
+    max-width: 480px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;}
+.btn-action {
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 90px;
+    transition: background 0.2s;}
+.btn-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #bdc3c7 !important;}
+.btn-approve { background: #27ae60; }
+.btn-save { background: #2980b9; }
+.btn-edit { background: #e67e22; }
+.btn-move { background: #16a085; }
+.btn-delete { background: #e74c3c; }
+.btn-print { background: #8e44ad; }
+.btn-back { background: #7f8c8d; }
+@media print {
+    body { background: none; padding: 0; direction: rtl; }
+    .page { 
+        width: 100%; 
+        max-width: 100%; 
+        box-shadow: none; 
+        margin: 0; 
+        padding: 8mm 6mm 6mm 6mm !important; 
+        page-break-after: always;  }
+    .contract-header .logo-img {
+        max-height: 90px !important;
+        max-width: 180px !important;
+        width: auto !important;  }
+    .actions-bar { display: none !important; }
+    .no-print { display: none !important; }}
+    </style>
+</head>
+<body>
+    <div class="actions-bar no-print" id="actionBar"></div>
+    <div class="page">
+        <div class="contract-header">
+            <div class="header-spacer"></div>
+            <div class="brand-title">مجمع الحرية</div>
+            <img src="ww.png" alt="Logo" class="logo-img">
+        </div>
+        <div class="info-grid">
+            <div class="info-row"><label>الصـالـة :</label><input type="text" id="hall_name" class="contract-input"></div>
+            <div class="info-row"><label>الـزبـون :</label><input type="text" id="groom_name" class="contract-input"></div>
+            <div class="info-row" style="display: flex; gap: 10px; align-items: center; margin-bottom: 2px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 12px; font-weight: bold;">لون المربع:</label>
+                    <select id="boxColor" class="input-inline contract-input" style="width: 100%; padding: 2px; border-radius: 4px; border: 1px solid #ccc;">
+                        <option value="#27ae60">أخضر</option>
+                        <option value="#e74c3c">أحمر</option>
+                        <option value="#8e44ad">بنفسجي</option>
+                        <option value="#2980b9">أزرق</option>
+                        <option value="#f1c40f">أصفر</option>
+                    </select>
+                </div>
+            </div>
+            <div class="info-row"><label>المـوبـايـل :</label><input type="text" id="phone1" class="en-num contract-input" oninput="convertInputToEnglish(this)"></div>
+            <div class="info-row"><label>المـنـاسـبـة :</label><input type="text" id="event_type" class="contract-input"></div>
+            <div class="info-row"><label>الهـاتـف :</label><input type="text" id="phone2" class="en-num contract-input" oninput="convertInputToEnglish(this)"></div>
+            <div class="info-row"><label>التـاريخ :</label><input type="text" id="event_date" class="readonly-field en-num" readonly></div>
+            <div class="info-row"><label>ممثـل الزبون :</label><input type="text" id="rep_name" class="contract-input"></div>
+            <div class="info-row"><label>مـدة الحفـل :</label><input type="text" id="duration" class="en-num contract-input" oninput="convertInputToEnglish(this)"></div>
+            <div class="info-row"><label>العدد المتوقع :</label><input type="text" id="exp_count" class="en-num contract-input" oninput="convertInputToEnglish(this)"></div>
+            <div class="info-row"><label>العدد المضمون :</label><input type="text" id="guar_count" class="en-num contract-input" oninput="convertInputToEnglish(this)"></div>
+        </div>
+        <table class="main-table">
+            <thead>
+                <tr>
+                    <th style="width: 50%;">البيــــان</th>
+                    <th style="width: 50%;">ملاحظات هامة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><div class="info-row"><label>حجز الصالة :</label><input type="text" id="hall_price" class="input-inline en-num contract-input" value="0" oninput="calculateMainTable()"></div></td>
+                    <td><b>الرصيد قبل 5 أيام</b></td>
+                </tr>
+                <tr>
+                    <td><div class="info-row"><label>حسم إداري :</label><input type="text" id="discount" class="input-inline en-num contract-input" value="0" oninput="calculateMainTable()"></div></td>
+                    <td>في حال الإلغاء من قبل الزبون يفقد حقه في إسترداد العربون</td>
+                </tr>
+                <tr>
+                    <td><div class="info-row"><label>السعر النهائي :</label><input type="text" id="final_price" class="input-inline readonly-field en-num" readonly value="0"></div></td>
+                    <td>في حال حدوث وفاة لا قدر الله يتم دفع كامل قيمة العقد لغرض التأجيل قبل 15 يوماً</td>
+                </tr>
+                <tr>
+                    <td><div class="info-row"><label>ملحقات :</label><input type="text" id="extras_price" class="input-inline readonly-field en-num" readonly value="0"></div></td>
+                    <td>في حال عدم دفع رصيد العقد يفقد الزبون حقه في إسترداد العربون</td>
+                </tr>
+                <tr>
+                    <td><div class="info-row"><label>عــام :</label><input type="text" id="total_general" class="input-inline readonly-field en-num" readonly value="0"></div></td>
+                    <td><input type="text" id="general_notes" class="contract-input" style="width: 100%; border: none; outline: none; background: transparent; font-size: 13px;" placeholder="اكتب الملاحظات هنا..."></td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="signatures">
+            <div class="deposit-row">
+                <div class="info-row"><label>الـعـربـون :</label><input type="text" id="deposit" class="input-inline en-num contract-input" value="0" oninput="calculateMainTable()"></div>
+                <div class="info-row"><label>البـاقـي :</label><input type="text" id="remaining_balance" class="input-inline readonly-field en-num" readonly value="0"></div>
+            </div>
+            <div class="info-row"><label>حجز من قبل :</label><input type="text" id="booked_by" class="contract-input"></div>
+            <div class="info-row"><label>توقيع المنظم :</label><input type="text" class="contract-input"></div>
+            <div class="info-row"><label>توقيع الزبون :</label><input type="text" class="contract-input"></div>
+            <div class="info-row" style="margin-top: 5px;"><label>تاريخ :</label><input type="text" id="contract_date" class="readonly-field en-num" readonly></div>
+        </div>
+    </div>
+    <div class="page">
+        <div class="contract-header">
+            <div class="header-spacer"></div>
+            <div class="brand-title">مجمع الحرية</div>
+            <img src="ww.png" alt="Logo" class="logo-img">
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; font-weight: bold;">
+            <div>يوم : <input type="text" id="event_day" class="contract-input" style="border: none; border-bottom: 1px dotted #000; outline: none; width: 120px; text-align: center;"></div>
+            <div>التاريخ : <input type="text" id="page2_date" class="readonly-field en-num" readonly style="border: none; border-bottom: 1px dotted #000; text-align: center; width: 120px;"></div>
+        </div>
+        <table class="services-table">
+            <thead>
+                <tr>
+                    <th style="width: 40%;">البيــــــــان</th>
+                    <th style="width: 15%;">العدد</th>
+                    <th style="width: 20%;">السعر</th>
+                    <th style="width: 25%;">المجموع</th>
+                </tr>
+            </thead>
+            <tbody id="servicesContainer">
+                <script>
+                    const servicesList = [
+                        "كوشـة", "أرجـوـانـات", "زيـنـة مدخـل", "خـدمـة بـنـات", "خـدمـة شـبـاب",
+                        "درج مـلـكـي", "مـصـعـد كـاتـو", "جـسـر إنـارة", "ربـاعـي", "بـيـمـات+بـارات", "جهاز ليزر", "دانـس فـلـور+مـمـر دانـس", "طـبـالـة",
+                        "DG + وصـل نـقـابـة", "تـصـويـر فـيـديـو + فـوتـو 40 كـرت مـطـبـوع", "شـاشـة LED",
+                        "لـيـمـوزيـن", "دخـان", "كـفـرات مـوبـايـل", "فـرقـة ررقـص", "فـرقـة نـحـاسـيـة أو عـراضـة",
+                        "كـاتـو", "خـدمـة كـاتـو", "كـولا", "خـدمـة كـولا", "عـصـيـر", "خـدمـة عـصـيـر",
+                        "قـهـوة", "خـدمـة قـهـوة", "شـراب الـلـوز", "خـدمـة شـراب الـلـوز", "خـدمـة عـشـاء",
+                        "قـهـوة مـرة", "خـدمـة فـواكـة", "خـدمـة مـوالـح", "لـوح أسـمـاء",
+                        "سـتـانـد ذهـب", "ألـعـاب نـاريـة"                 ];
+                    let htmlBuilder = '';
+                    servicesList.forEach((serviceName, idx) => {
+                        htmlBuilder += `
+                            <tr>
+                                <td class="checkbox-cell">
+                                    <input type="checkbox" class="srv-check contract-input" data-index="${idx}" onchange="calculateServices()">
+                                    <span>${serviceName}</span>
+                                </td>
+                                <td><input type="text" class="input-inline srv-qty en-num contract-input" data-index="${idx}" value="1" oninput="calculateServices()"></td>
+                                <td><input type="text" class="input-inline srv-price en-num contract-input" data-index="${idx}" value="0" oninput="calculateServices()"></td>
+                                <td><input type="text" class="input-inline srv-total readonly-field en-num" id="srv_total_${idx}" readonly value="0"></td>
+                            </tr>`;    });
+                    for (let i = 0; i < 4; i++) {
+                        const idx = servicesList.length + i;
+                        htmlBuilder += `
+                            <tr>
+                                <td class="checkbox-cell">
+                                    <input type="checkbox" class="srv-check contract-input" data-index="${idx}" onchange="calculateServices()">
+                                    <input type="text" class="input-inline srv-custom-name contract-input" data-index="${idx}" placeholder="إضافة خدمة أخرى..." style="border-bottom: 1px dotted #999;">
+                                </td>
+                                <td><input type="text" class="input-inline srv-qty en-num contract-input" data-index="${idx}" value="1" oninput="calculateServices()"></td>
+                                <td><input type="text" class="input-inline srv-price en-num contract-input" data-index="${idx}" value="0" oninput="calculateServices()"></td>
+                                <td><input type="text" class="input-inline srv-total readonly-field en-num" id="srv_total_${idx}" readonly value="0"></td>
+                            </tr>`;   }
+                    htmlBuilder += `
+                        <tr>
+                            <td colspan="4" style="text-align: right; padding: 4px;">
+                                <label style="font-weight: bold; display: block; margin-bottom: 2px;">ملاحظات الخدمات:</label>
+                                <textarea id="general_notes5" class="contract-input" style="width: 100%; height: 100px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; resize: vertical;" placeholder="اكتب ملاحظاتك هنا..."></textarea>
+                            </td>
+                        </tr>`;
+                    document.write(htmlBuilder);
+                </script>
+            </tbody>
+        </table>
+    </div>
+    <script>
+        // === إعدادات الاتصال بـ Supabase ===
+        const SUPABASE_URL = 'https://lgzhmamxyawldbpucxeu.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_V_ZFiFCH2QD2_kLqPY9JBg_ndDdXMJ_'; 
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const userRole = localStorage.getItem('currentUserRole') || 'user';
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedDate = urlParams.get('date');
+        const contractId = urlParams.get('id'); 
+        function setupButtons() {
+            const bar = document.getElementById('actionBar');
+            if (userRole === 'admin') {
+                bar.innerHTML = `
+                    <button class="btn-action btn-approve" onclick="approveContract()">قبول العقد</button>
+                    <button class="btn-action btn-edit" id="btnEdit" onclick="enableEditing()">تعديل</button>
+                    <button class="btn-action btn-move" id="btnMove" onclick="moveBookingDate()">نقل الحجز</button>
+                    <button class="btn-action btn-save" id="btnSave" onclick="saveContract(true)">حفظ</button>
+                    <button class="btn-action btn-delete" onclick="deleteContract()">حذف العقد</button>
+                    <button class="btn-action btn-print" onclick="window.print()">طباعة العقد</button>
+                    <button class="btn-action btn-back" onclick="window.location.href='dash.html'">العودة للتقويم</button> `;
+            } else {
+                bar.innerHTML = `
+                    <button class="btn-action btn-edit" id="btnEdit" onclick="enableEditing()">تعديل</button>
+                    <button class="btn-action btn-move" id="btnMove" onclick="moveBookingDate()">نقل الحجز</button>
+                    <button class="btn-action btn-save" id="btnSave" onclick="saveContract(false)">حفظ</button>
+                    <button class="btn-action btn-print" onclick="window.print()">طباعة العقد</button>
+                    <button class="btn-action btn-back" onclick="window.location.href='dash.html'">العودة للتقويم</button>`; }
+            applyContractModeState();  }
+        function applyContractModeState() {
+            const btnEdit = document.getElementById('btnEdit');
+            const btnMove = document.getElementById('btnMove');
+            if (!contractId) {
+                toggleInputsLock(false);
+                if (btnEdit) btnEdit.disabled = true;
+                if (btnMove) btnMove.disabled = true;
+            } else {
+                toggleInputsLock(true);
+                if (btnEdit) btnEdit.disabled = false;
+                if (btnMove) btnMove.disabled = false;    }      }
+        function toggleInputsLock(lock) {
+            const inputs = document.querySelectorAll('.contract-input');
+            inputs.forEach(input => {
+                input.disabled = lock;
+            });   }
+        function enableEditing() {
+            toggleInputsLock(false);
+            alert('تم تفعيل وضع التعديل، يمكنك الآن تعديل بيانات العقد.');   }
+        
+        async function moveBookingDate() {
+            if (!contractId) {
+                alert('لا يمكن نقل حجز غير محفوظ بعد!');
+                return; }
+            const currentEventDate = document.getElementById('event_date').value;
+            const newDateInput = prompt('أدخل التاريخ الجديد للحجز (بالصيغة YYYY-MM-DD):', currentEventDate);
+            if (!newDateInput) return;
+            const cleanNewDate = toEnglishDigits(newDateInput.trim());
+            if (cleanNewDate.length < 8) {
+                alert('الرجاء إدخال تاريخ صحيح بالصيغة المطلوبة (مثال: 2026-10-15)');
+                return;   }
+            if (!confirm(`هل أنت متأكد من رغبتك في نقل هذا الحجز من تاريخ (${currentEventDate}) إلى التاريخ الجديد (${cleanNewDate})؟`)) {
+                return;   }
+            try {
+                // 1. تحديث التاريخ في جدول الحجوزات
+                const { error } = await supabaseClient
+                    .from('bookings_table')
+                    .update({ booking_date: cleanNewDate })
+                    .eq('id', contractId);
+                if (error) throw error;
+
+                // 2. إرسال إشعار النقل إلى جدول الإشعارات (notifications) ليظهر في صفحة التقويم
+                const groomName = document.getElementById('groom_name').value.trim() || 'بدون اسم';
+                await supabaseClient
+                    .from('notifications')
+                    .insert([{
+                        title: 'نقل حجز',
+                        message: `تم نقل حجز الزبون "${groomName}" من تاريخ ${currentEventDate} إلى التاريخ الجديد ${cleanNewDate}`,
+                        link: `contract.html?date=${cleanNewDate}&id=${contractId}`,
+                        is_read: false
+                    }]);
+
+                alert('تم نقل الحجز بنجاح إلى التاريخ الجديد وإرسال إشعار للأدمن!');
+                window.location.href = `contract.html?date=${cleanNewDate}&id=${contractId}`;
+            } catch (e) {
+                console.error('خطأ أثناء نقل الحجز:', e);
+                alert('حدث خطأ أثناء نقل الحجز بالسحابة: ' + e.message);
+            } 
+        }
+
+        function toEnglishDigits(str) {
+            return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g, function (d) {
+                return d.charCodeAt(0) - 1632;
+            }); }
+        function convertInputToEnglish(input) {
+            if(input) input.value = toEnglishDigits(input.value);   }
+        function parseEnglishNumber(val) {
+            const cleanStr = toEnglishDigits(val).replace(/[^0-9.]/g, '');
+            return parseFloat(cleanStr) || 0;   }
+        if (selectedDate) {
+            const cleanSelectedDate = toEnglishDigits(selectedDate);
+            document.getElementById('event_date').value = cleanSelectedDate;
+            document.getElementById('page2_date').value = cleanSelectedDate;
+            loadContractData();
+        } else {
+            alert('لم يتم تحديد التاريخ!');
+            window.location.href = 'dash.html';   }
+        async function loadContractData() {
+            try {
+                if (contractId) {
+                    const { data, error } = await supabaseClient
+                        .from('bookings_table')
+                        .select('*')
+                        .eq('id', contractId)
+                        .single();
+                    if (error) throw error;
+                    if (data) {
+                        if(data.booking_date) {
+                            document.getElementById('event_date').value = data.booking_date;
+                            document.getElementById('page2_date').value = data.booking_date;      }
+                        document.getElementById('groom_name').value = data.groom_name || '';
+                        document.getElementById('hall_name').value = data.hall_name || '';
+                        document.getElementById('boxColor').value = data.box_color || '#27ae60'; 
+                        document.getElementById('phone1').value = data.phone1 || '';
+                        document.getElementById('phone2').value = data.phone2 || '';
+                        document.getElementById('event_type').value = data.event_type || '';
+                        document.getElementById('rep_name').value = data.rep_name || '';
+                        document.getElementById('duration').value = data.duration || '';
+                        document.getElementById('exp_count').value = data.exp_count || '';
+                        document.getElementById('guar_count').value = data.guar_count || '';
+                        document.getElementById('hall_price').value = data.hall_price || '0';
+                        document.getElementById('discount').value = data.discount || '0';
+                        document.getElementById('deposit').value = data.deposit || '0';
+                        document.getElementById('general_notes').value = data.general_notes || '';
+                        if(document.getElementById('general_notes5')) {
+                            document.getElementById('general_notes5').value = data.general_notes || '';      }
+                        document.getElementById('booked_by').value = data.booked_by || '';
+                        if(data.event_day) document.getElementById('event_day').value = data.event_day;
+                        if (data.services_data && Array.isArray(data.services_data)) {
+                            data.services_data.forEach(item => {
+                                const check = document.querySelector(`.srv-check[data-index="${item.index}"]`);
+                                const qtyInput = document.querySelector(`.srv-qty[data-index="${item.index}"]`);
+                                const priceInput = document.querySelector(`.srv-price[data-index="${item.index}"]`);
+                                const customNameInput = document.querySelector(`.srv-custom-name[data-index="${item.index}"]`);
+                                if (check) check.checked = item.checked;
+                                if (qtyInput) qtyInput.value = item.qty;
+                                if (priceInput) priceInput.value = item.price;
+                                if (customNameInput && item.customName) customNameInput.value = item.customName;
+                            });
+                        }
+                        calculateServices();
+                    }
+                }
+            } catch (e) {
+                console.error('خطأ في جلب تفاصيل العقد من Supabase:', e);
+     }   }
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        document.getElementById('contract_date').value = `${year}-${month}-${day}`;
+        function calculateServices() {
+            let totalExtras = 0;
+            const checks = document.querySelectorAll('.srv-check');
+            checks.forEach(check => {
+                const idx = check.getAttribute('data-index');
+                const qtyInput = document.querySelector(`.srv-qty[data-index="${idx}"]`);
+                const priceInput = document.querySelector(`.srv-price[data-index="${idx}"]`);
+                convertInputToEnglish(qtyInput);
+                convertInputToEnglish(priceInput);
+                const qty = parseEnglishNumber(qtyInput ? qtyInput.value : 1);
+                const price = parseEnglishNumber(priceInput ? priceInput.value : 0);
+                const totalCell = document.getElementById(`srv_total_${idx}`);
+                if (check.checked) {
+                    const lineTotal = qty * price;
+                    if(totalCell) totalCell.value = toEnglishDigits(lineTotal);
+                    totalExtras += lineTotal;
+                } else {
+                    if(totalCell) totalCell.value = "0";
+                }  });
+            document.getElementById('extras_price').value = toEnglishDigits(totalExtras);
+            calculateMainTable();    }
+        function calculateMainTable() {
+            const hallInput = document.getElementById('hall_price');
+            const discountInput = document.getElementById('discount');
+            const depositInput = document.getElementById('deposit');
+            convertInputToEnglish(hallInput);
+            convertInputToEnglish(discountInput);
+            convertInputToEnglish(depositInput);
+            const hallPrice = parseEnglishNumber(hallInput.value);
+            const discount = parseEnglishNumber(discountInput.value);
+            const extrasPrice = parseEnglishNumber(document.getElementById('extras_price').value);
+            const deposit = parseEnglishNumber(depositInput.value);
+            const finalPrice = Math.max(0, hallPrice - discount);
+            document.getElementById('final_price').value = toEnglishDigits(finalPrice);
+            const totalGeneral = finalPrice + extrasPrice;
+            document.getElementById('total_general').value = toEnglishDigits(totalGeneral);
+            const remaining = Math.max(0, totalGeneral - deposit);
+            document.getElementById('remaining_balance').value = toEnglishDigits(remaining);   }
+        async function saveContract(isAdmin = false) {
+            const groomName = document.getElementById('groom_name').value.trim();
+            const eventDate = document.getElementById('event_date').value;
+            if (!groomName) {
+                alert('يرجى إدخال اسم الزبون أولاً!');
+                return;    }
+            if (!eventDate) {
+                alert('التاريخ غير محدد!');
+                return;  }
+            const notesVal = document.getElementById('general_notes5') ? document.getElementById('general_notes5').value : document.getElementById('general_notes').value;
+            const servicesPayload = [];
+            const checks = document.querySelectorAll('.srv-check');
+            checks.forEach(check => {
+                const idx = check.getAttribute('data-index');
+                const qtyInput = document.querySelector(`.srv-qty[data-index="${idx}"]`);
+                const priceInput = document.querySelector(`.srv-price[data-index="${idx}"]`);
+                const customNameInput = document.querySelector(`.srv-custom-name[data-index="${idx}"]`);
+                servicesPayload.push({
+                    index: idx,
+                    checked: check.checked,
+                    qty: qtyInput ? qtyInput.value : "1",
+                    price: priceInput ? priceInput.value : "0",
+                    customName: customNameInput ? customNameInput.value : ""
+                });    });
+            const payload = {
+                booking_date: eventDate,
+                groom_name: groomName,
+                hall_name: document.getElementById('hall_name').value,
+                box_color: document.getElementById('boxColor').value, 
+                phone1: document.getElementById('phone1').value,
+                phone2: document.getElementById('phone2').value,
+                event_type: document.getElementById('event_type').value,
+                rep_name: document.getElementById('rep_name').value,
+                duration: document.getElementById('duration').value,
+                exp_count: document.getElementById('exp_count').value,
+                guar_count: document.getElementById('guar_count').value,
+                hall_price: document.getElementById('hall_price').value,
+                discount: document.getElementById('discount').value,
+                deposit: document.getElementById('deposit').value,
+                general_notes: notesVal,
+                event_day: document.getElementById('event_day').value,
+                booked_by: document.getElementById('booked_by').value,
+                services_data: servicesPayload, // إرسال تفاصيل الملحقات والخدمات مع الحفظ
+                status: isAdmin ? 'approved' : 'pending'
+            };
+            try {
+                let savedBookingId = contractId;
+                if (contractId) {
+                    const { error } = await supabaseClient
+                        .from('bookings_table')
+                        .update(payload)
+                        .eq('id', contractId);
+                    if (error) throw error;
+                } else {
+                    const { data, error } = await supabaseClient
+                        .from('bookings_table')
+                        .insert([payload])
+                        .select();
+                    if (error) throw error;
+                    if (data && data.length > 0) {
+                        savedBookingId = data[0].id;
+                    }    }
+                toggleInputsLock(true);
+                applyContractModeState();
+                alert(isAdmin ? 'تم حفظ التعديلات واعتمادها بنجاح.' : 'تم حفظ العقد كمسودة معلقة بانتظار الموافقة.');
+                window.location.replace('dash.html');
+            } catch (e) {
+                console.error('خطأ أثناء الحفظ في Supabase:', e);
+                alert('حدث خطأ أثناء الحفظ بالسحابة: ' + e.message);
+       }   }
+        async function approveContract() {
+            await saveContract(true);   }
+        async function deleteContract() {
+            if (!confirm('هل أنت متأكد من رغبتك في حذف هذا العقد نهائياً من السحابة؟')) return;
+            try {
+                if (contractId) {
+                    const { error } = await supabaseClient
+                        .from('bookings_table')
+                        .delete()
+                        .eq('id', contractId);
+                    if (error) throw error;    }
+                alert('تم حذف العقد بنجاح.');
+                window.location.replace('dash.html');
+            } catch (e) {
+                console.error('خطأ أثناء الحذف:', e);
+                alert('حدث خطأ أثناء الحذف: ' + e.message);
+            } }
+        setupButtons();
+        calculateServices();
+    </script>
+</body>
+</html>
