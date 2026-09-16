@@ -316,11 +316,11 @@
                         if (isBackgroundCheck && lastBookingsStateJSON !== "" && currentStateJSON !== lastBookingsStateJSON) {
                             if (currentUserRole === 'admin') {
                                 if (data.length > lastBookingsCount) {
-                                    triggerNewBookingAlert("حجز عرس جديد!", "تمت إضافة حجز عرس جديد إلى النظام.");
+                                    triggerNewBookingAlert("حجز عرس جديد!", "قام (حرف الام) بإضافة حجز عرس جديد.");
                                 } else if (data.length < lastBookingsCount) {
-                                    triggerNewBookingAlert("حذف حجز!", "تم حذف حجز من النظام.");
+                                    triggerNewBookingAlert("حذف حجز!", "قام (حرف الام) بحذف حجز من النظام.");
                                 } else {
-                                    triggerNewBookingAlert("تعديل حجز!", "تم تعديل بيانات حجز في النظام.");
+                                    triggerNewBookingAlert("تعديل حجز!", "قام (حرف الام) بتعديل بيانات حجز.");
                                 }
                             }
                         }
@@ -367,11 +367,8 @@
                   .channel('public:bookings_table')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
                       if (currentUserRole === 'admin') {
-                          // جلب اسم المستخدم من الذاكرة المحلية (localStorage) أو من البيانات الواردة أو استخدام اسم بديل
-                          let modifierName = localStorage.getItem('currentUserName') || 
-                                             (payload.new && payload.new.updated_by) || 
-                                             (payload.old && payload.old.updated_by) || 
-                                             'المسؤول';
+                          // إظهار "حرف الام" مباشرة في الإشعار عند حدوث أي تعديل أو إضافة
+                          let modifierName = "حرف الام";
 
                           if (payload.eventType === 'INSERT') {
                               triggerNewBookingAlert("حجز جديد!", `قام (${modifierName}) بإضافة حجز عرس جديد.`);
