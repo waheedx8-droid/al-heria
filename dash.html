@@ -200,8 +200,8 @@
     </audio>
 
     <script>
-        const SUPABASE_URL = 'https://ylcccnitnvlarrweguxi.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_iCjCSR9_Cen1rhA5fH6uKg_s4MYlQ1o'; 
+        const SUPABASE_URL = 'https://lgzhmamxyawldbpucxeu.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_V_ZFiFCH2QD2_kLqPY9JBg_ndDdXMJ_'; 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         let lastBookingsCount = 0;
@@ -367,13 +367,16 @@
                   .channel('public:bookings_table')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
                       if (currentUserRole === 'admin') {
-                          // استخراج اسم المستخدم الذي قام بالتعديل/الحفظ من السجل الجديد إن وجد
-                          let modifierName = (payload.new && payload.new.updated_by) ? payload.new.updated_by : 'مستخدم النظام';
+                          // جلب اسم المستخدم من الذاكرة المحلية (localStorage) أو من البيانات الواردة أو استخدام اسم بديل
+                          let modifierName = localStorage.getItem('currentUserName') || 
+                                             (payload.new && payload.new.updated_by) || 
+                                             (payload.old && payload.old.updated_by) || 
+                                             'المسؤول';
 
                           if (payload.eventType === 'INSERT') {
                               triggerNewBookingAlert("حجز جديد!", `قام (${modifierName}) بإضافة حجز عرس جديد.`);
                           } else if (payload.eventType === 'DELETE') {
-                              triggerNewBookingAlert("حذف حجز!", `تم حذف حجز من النظام.`);
+                              triggerNewBookingAlert("حذف حجز!", `قام (${modifierName}) بحذف حجز من النظام.`);
                           } else if (payload.eventType === 'UPDATE') {
                               triggerNewBookingAlert("تعديل حجز!", `قام (${modifierName}) بتعديل بيانات حجز.`);
                           }
