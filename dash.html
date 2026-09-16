@@ -211,34 +211,40 @@
         let currentUsername = 'مستخدم';
         let currentUserRole = 'user';
 
-        // جلب اسم المستخدم الحقيقي من جدول settings_table بناءً على القيمة المخزنة محلياً
+        // جلب اسم المستخدم مباشرة من حقل custom_user بناءً على القيمة المخزنة
         async function fetchUserDataFromSettings() {
             try {
                 let savedVal = localStorage.getItem('currentVal') || 
                                localStorage.getItem('currentUserRole') || 
                                localStorage.getItem('currentUser') || 
-                               localStorage.getItem('user');
+                               localStorage.getItem('user') ||
+                               localStorage.getItem('username');
 
                 if (savedVal) {
+                    currentUsername = savedVal; 
+                    
                     const { data, error } = await supabaseClient.from('settings_table').select('*');
                     
                     if (!error && data && data.length > 0) {
                         let matchedRow = data.find(row => 
                             String(row.val).trim() === String(savedVal).trim() || 
                             String(row.role_user).trim() === String(savedVal).trim() ||
-                            String(row.custom_user).trim() === String(savedVal).trim()
+                            String(row.custom_user).trim() === String(savedVal).trim() ||
+                            String(row.id).trim() === String(savedVal).trim()
                         );
 
                         if (matchedRow) {
-                            currentUsername = matchedRow.custom_user || savedVal;
+                            // الاعتماد الأساسي على حقل custom_user لاسم المستخدم
+                            if (matchedRow.custom_user) {
+                                currentUsername = matchedRow.custom_user;
+                            }
                             currentUserRole = matchedRow.role_user || 'user';
                         } else {
-                            currentUsername = savedVal;
-                            currentUserRole = 'user';
+                            let adminRow = data.find(row => String(row.val).trim() === String(savedVal).trim());
+                            if (adminRow && adminRow.role_user === 'admin') {
+                                currentUserRole = 'admin';
+                            }
                         }
-                    } else {
-                        currentUsername = savedVal;
-                        currentUserRole = 'user';
                     }
                 } else {
                     currentUsername = 'مستخدم';
@@ -246,8 +252,6 @@
                 }
             } catch (e) {
                 console.error("خطأ في جلب بيانات المستخدم:", e);
-                currentUsername = 'مستخدم';
-                currentUserRole = 'user';
             }
 
             // تحديث الواجهة بالعضوية واسم المستخدم الصحيح
