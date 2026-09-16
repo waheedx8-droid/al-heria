@@ -184,7 +184,7 @@
         </div>
     </div>
 
-    <!-- نافذة منبثقة فورية للتنبيه داخل التطبيق -->
+    <!-- نافذة منبثقة للتنبيه داخل التطبيق -->
     <div id="liveAlertModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; justify-content:center; align-items:center;">
         <div style="background:#fff; padding:20px; border-radius:10px; width:90%; max-width:350px; text-align:center; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
             <div style="font-size:35px; margin-bottom:10px;">🔔</div>
@@ -212,17 +212,17 @@
 
         async function fetchUserDataFromSettings() {
             try {
-                let directUser = localStorage.getItem('loggedCustomUser');
+                // البحث عن اسم المستخدم في جميع المفاتيح المحتملة التي قد يتم تخزينها عند تسجيل الدخول
+                let directUser = localStorage.getItem('loggedCustomUser') || 
+                                 localStorage.getItem('currentUser') || 
+                                 localStorage.getItem('username') || 
+                                 localStorage.getItem('user');
+                                 
                 let savedVal = localStorage.getItem('currentVal') || 
-                               localStorage.getItem('currentUserRole') || 
-                               localStorage.getItem('currentUser') || 
-                               localStorage.getItem('user') ||
-                               localStorage.getItem('username');
+                               localStorage.getItem('currentUserRole');
 
                 if (directUser) {
                     currentUsername = directUser;
-                } else if (savedVal) {
-                    currentUsername = savedVal;
                 }
 
                 const { data, error } = await supabaseClient.from('settings_table').select('*');
@@ -243,12 +243,11 @@
                         );
                     }
 
+                    // إذا لم يتم العثور على مطابقة دقيقة ولكي لا يظهر كلمة "مستخدم"، نأخذ أول مستخدم مسجل إذا كان متاحاً أو القيمة المخزنة
                     if (matchedRow) {
-                        if (matchedRow.custom_user) {
-                            currentUsername = matchedRow.custom_user;
-                        }
+                        currentUsername = matchedRow.custom_user || matchedRow.val || currentUsername;
                         currentUserRole = matchedRow.role_user || 'user';
-                    } else if (data.length === 1) {
+                    } else if (!directUser && data.length === 1) {
                         currentUsername = data[0].custom_user || 'مستخدم';
                         currentUserRole = data[0].role_user || 'user';
                     }
@@ -259,7 +258,7 @@
 
             const roleDisplay = document.getElementById('roleDisplay');
             if (currentUserRole === 'admin') {
-                roleDisplay.textContent = `${currentUsername} (admin)`;
+                roleDisplay.textContent = `${currentUsername} (مدير النظام)`;
                 document.getElementById('dashboardBtn').style.display = 'inline-block'; 
                 document.getElementById('notifContainer').style.display = 'inline-block';
                 
@@ -388,7 +387,7 @@
             }
         }
 
-        setInterval(() => { initCalendarSystem(true); }, 15000); // تم تعديلها إلى 15 ثانية لتخفيف الضغط
+        setInterval(() => { initCalendarSystem(true); }, 15000);
 
         function renderCalendar() {
             const year = currentDate.getFullYear();
@@ -520,7 +519,6 @@
         function selectAndJump(b) { 
             closeSearchSelectionModal(); 
             jumpToBookingDate(b); 
-            // فتح نافذة تفاصيل اليوم تلقائياً عند اختيار النتيجة
             if (b.booking_date) {
                 const rawDate = b.booking_date.toString().trim().split('T')[0];
                 openModal(rawDate, allBookingsMap[rawDate] || []);
