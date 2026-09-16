@@ -169,7 +169,7 @@
                     </div>
                 </div>
 
-                <span id="roleDisplay" class="user-tag">user</span>
+                <span id="roleDisplay" class="user-tag">جاري التحميل...</span>
                 <button class="btn-nav logout" onclick="logout()">خروج</button>
             </div>
         </div>
@@ -208,24 +208,51 @@
         let lastBookingsMapState = {};
         let swRegistration = null;
 
-        // جلب اسم المستخدم الحقيقي المسجل في الذاكرة المحلية (مثل اسمك أو الصلاحية)
-        const currentUsername = localStorage.getItem('currentUsername') || localStorage.getItem('currentUserRole') || 'مدير النظام';
-        const currentUserRole = localStorage.getItem('currentUserRole') || 'user';
-        
-        // عرض اسم المستخدم الفعلي في شريط التحكم العلوي
-        if (currentUserRole === 'admin') {
-            document.getElementById('roleDisplay').textContent = `${currentUsername} (admin)`;
-            document.getElementById('dashboardBtn').style.display = 'inline-block'; 
-            document.getElementById('notifContainer').style.display = 'inline-block';
-            
-            const isSoundAllowed = localStorage.getItem('pwa_sound_allowed');
-            if (!isSoundAllowed) {
-                document.getElementById('soundToggleBtn').style.display = 'inline-block';
+        let currentUsername = 'مستخدم النظام';
+        let currentUserRole = 'user';
+
+        // جلب بيانات المستخدم الفعلية من جدول settings_table بناءً على كلمة المرور المحفوظة محلياً
+        async function fetchUserDataFromSettings() {
+            try {
+                const savedVal = localStorage.getItem('currentVal') || localStorage.getItem('currentUserRole');
+                if (savedVal) {
+                    const { data, error } = await supabaseClient.from('settings_table').select('*').eq('val', savedVal).single();
+                    if (!error && data) {
+                        currentUsername = data.custom_user || data.val || 'مستخدم';
+                        currentUserRole = data.role_user || 'user';
+                    } else {
+                        // إذا لم يتم العثور بالطريقة السابقة، نبحث بالـ role_user أو نأخذ القيمة القديمة
+                        const { data: dataRole } = await supabaseClient.from('settings_table').select('*').eq('role_user', savedVal);
+                        if (dataRole && dataRole.length > 0) {
+                            currentUsername = dataRole[0].custom_user || savedVal;
+                            currentUserRole = dataRole[0].role_user || 'user';
+                        } else {
+                            currentUsername = localStorage.getItem('currentUsername') || savedVal;
+                            currentUserRole = localStorage.getItem('currentUserRole') || 'user';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("خطأ في جلب بيانات المستخدم من الجدول:", e);
+                currentUsername = localStorage.getItem('currentUsername') || 'مدير النظام';
+                currentUserRole = localStorage.getItem('currentUserRole') || 'user';
             }
-        } else if (currentUserRole === 'read_only') {
-            document.getElementById('roleDisplay').textContent = `${currentUsername} (قراءة فقط)`;
-        } else {
-            document.getElementById('roleDisplay').textContent = currentUsername;
+
+            // تحديث الواجهة بالعضوية واسم المستخدم الصحيح
+            if (currentUserRole === 'admin') {
+                document.getElementById('roleDisplay').textContent = `${currentUsername} (admin)`;
+                document.getElementById('dashboardBtn').style.display = 'inline-block'; 
+                document.getElementById('notifContainer').style.display = 'inline-block';
+                
+                const isSoundAllowed = localStorage.getItem('pwa_sound_allowed');
+                if (!isSoundAllowed) {
+                    document.getElementById('soundToggleBtn').style.display = 'inline-block';
+                }
+            } else if (currentUserRole === 'read_only') {
+                document.getElementById('roleDisplay').textContent = `${currentUsername} (قراءة فقط)`;
+            } else {
+                document.getElementById('roleDisplay').textContent = currentUsername;
+            }
         }
 
         if ('serviceWorker' in navigator) {
@@ -484,7 +511,12 @@
             document.getElementById('bookingModal').style.display = 'flex';
         }
 
-        initCalendarSystem(false);
+        // بدء التشغيل عبر جلب معلومات المستخدم أولاً ثم بدء التقويم
+        async function startApp() {
+            await fetchUserDataFromSettings();
+            initCalendarSystem(false);
+        }
+        startApp();
 
         async function fetchNotifications() {
             try {
