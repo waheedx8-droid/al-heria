@@ -205,7 +205,7 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         let lastBookingsCount = 0;
-        let lastBookingsStateJSON = "";
+        let lastBookingsMapState = {}; // خريطة لتخزين حالة الحجوزات السابقة بدقة لمقارنة التواريخ
         let swRegistration = null;
 
         if ('serviceWorker' in navigator) {
@@ -311,22 +311,45 @@
                 if (supabaseClient) {
                     const { data, error } = await supabaseClient.from('bookings_table').select('*');
                     if (!error && data) {
-                        const currentStateJSON = JSON.stringify(data);
+                        let currentMapState = {};
+                        data.forEach(item => {
+                            currentMapState[item.id] = {
+                                booking_date: item.booking_date ? item.booking_date.toString().trim().split('T')[0] : '',
+                                groom_name: item.groom_name || 'غير معروف'
+                            };
+                        });
 
-                        if (isBackgroundCheck && lastBookingsStateJSON !== "" && currentStateJSON !== lastBookingsStateJSON) {
+                        if (isBackgroundCheck && Object.keys(lastBookingsMapState).length > 0) {
                             if (currentUserRole === 'admin') {
                                 if (data.length > lastBookingsCount) {
-                                    triggerNewBookingAlert("حجز عرس جديد!", "قام (حرف الام) بإضافة حجز عرس جديد.");
+                                    triggerNewBookingAlert("حجز عرس جديد!", "قام المستخدم (حرف الام) بإضافة حجز عرس جديد.");
                                 } else if (data.length < lastBookingsCount) {
-                                    triggerNewBookingAlert("حذف حجز!", "قام (حرف الام) بحذف حجز من النظام.");
+                                    triggerNewBookingAlert("حذف حجز!", "قام المستخدم (حرف الام) بحذف حجز من النظام.");
                                 } else {
-                                    triggerNewBookingAlert("تعديل حجز!", "قام (حرف الام) بتعديل بيانات حجز.");
+                                    // التحقق هل تم نقل الحجز وتغيير تاريخه أم تعديل عادي
+                                    let updateDetected = false;
+                                    for (let id in currentMapState) {
+                                        if (lastBookingsMapState[id]) {
+                                            let oldDate = lastBookingsMapState[id].booking_date;
+                                            let newDate = currentMapState[id].booking_date;
+                                            let groom = currentMapState[id].groom_name;
+
+                                            if (oldDate !== newDate) {
+                                                updateDetected = true;
+                                                triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (للعريس: ${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (حرف الام).`);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!updateDetected) {
+                                        triggerNewBookingAlert("تعديل حجز!", "قام المستخدم (حرف الام) بتعديل بيانات حجز.");
+                                    }
                                 }
                             }
                         }
 
                         lastBookingsCount = data.length;
-                        lastBookingsStateJSON = currentStateJSON;
+                        lastBookingsMapState = currentMapState;
 
                         allBookingsMap = {};
                         data.forEach(item => {
@@ -367,15 +390,24 @@
                   .channel('public:bookings_table')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
                       if (currentUserRole === 'admin') {
-                          // إظهار "حرف الام" مباشرة في الإشعار عند حدوث أي تعديل أو إضافة
                           let modifierName = "حرف الام";
 
                           if (payload.eventType === 'INSERT') {
-                              triggerNewBookingAlert("حجز جديد!", `قام (${modifierName}) بإضافة حجز عرس جديد.`);
+                              let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
+                              triggerNewBookingAlert("حجز جديد!", `قام المستخدم (${modifierName}) بإضافة حجز جديد (${groom}).`);
                           } else if (payload.eventType === 'DELETE') {
-                              triggerNewBookingAlert("حذف حجز!", `قام (${modifierName}) بحذف حجز من النظام.`);
+                              let groom = payload.old && payload.old.groom_name ? payload.old.groom_name : '';
+                              triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${modifierName}) بحذف حجز (${groom}) من النظام.`);
                           } else if (payload.eventType === 'UPDATE') {
-                              triggerNewBookingAlert("تعديل حجز!", `قام (${modifierName}) بتعديل بيانات حجز.`);
+                              let oldDate = payload.old && payload.old.booking_date ? payload.old.booking_date.toString().split('T')[0] : '';
+                              let newDate = payload.new && payload.new.booking_date ? payload.new.booking_date.toString().split('T')[0] : '';
+                              let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
+
+                              if (oldDate && newDate && oldDate !== newDate) {
+                                  triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${modifierName}).`);
+                              } else {
+                                  triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${modifierName}) بتعديل بيانات الحجز (${groom}).`);
+                              }
                           }
                       }
                       initCalendarSystem(false);
