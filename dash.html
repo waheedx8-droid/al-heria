@@ -122,7 +122,7 @@
             color: #fff; 
             display: block; 
             text-decoration: none; 
-            white-space: normal;     
+            white-space: normal;    
             overflow: hidden;     
             text-overflow: ellipsis;  
             max-width: 100%;
@@ -210,10 +210,8 @@
         let currentUsername = 'مستخدم';
         let currentUserRole = 'user';
 
-        // دالة جلب اسم المستخدم الذكية المباشرة
         async function fetchUserDataFromSettings() {
             try {
-                // 1. فحص هل اسم المستخدم مخزّن مسبقاً بشكل مباشر من صفحة الاندكس
                 let directUser = localStorage.getItem('loggedCustomUser');
                 let savedVal = localStorage.getItem('currentVal') || 
                                localStorage.getItem('currentUserRole') || 
@@ -227,7 +225,6 @@
                     currentUsername = savedVal;
                 }
 
-                // 2. جلب البيانات من جدول الإعدادات للتأكد من الصلاحيات وحقل custom_user الدقيق
                 const { data, error } = await supabaseClient.from('settings_table').select('*');
                 
                 if (!error && data && data.length > 0) {
@@ -246,7 +243,6 @@
                         );
                     }
 
-                    // إذا لم نجد تطابق دقيق وكان هناك سطر واحد أو سطر افتراضي (أو أول مستخدم) نلجأ إليه، أو نأخذ أول custom_user متوفر إذا كان مستخدماً عادياً
                     if (matchedRow) {
                         if (matchedRow.custom_user) {
                             currentUsername = matchedRow.custom_user;
@@ -261,7 +257,6 @@
                 console.error("خطأ في جلب بيانات المستخدم:", e);
             }
 
-            // تحديث الواجهة بالعضوية واسم المستخدم الصحيح
             const roleDisplay = document.getElementById('roleDisplay');
             if (currentUserRole === 'admin') {
                 roleDisplay.textContent = `${currentUsername} (admin)`;
@@ -393,7 +388,7 @@
             }
         }
 
-        setInterval(() => { initCalendarSystem(true); }, 5000);
+        setInterval(() => { initCalendarSystem(true); }, 15000); // تم تعديلها إلى 15 ثانية لتخفيف الضغط
 
         function renderCalendar() {
             const year = currentDate.getFullYear();
@@ -521,14 +516,26 @@
         }
 
         function closeSearchSelectionModal() { document.getElementById('searchSelectionModal').style.display = 'none'; }
-        function selectAndJump(b) { closeSearchSelectionModal(); jumpToBookingDate(b); }
+        
+        function selectAndJump(b) { 
+            closeSearchSelectionModal(); 
+            jumpToBookingDate(b); 
+            // فتح نافذة تفاصيل اليوم تلقائياً عند اختيار النتيجة
+            if (b.booking_date) {
+                const rawDate = b.booking_date.toString().trim().split('T')[0];
+                openModal(rawDate, allBookingsMap[rawDate] || []);
+            }
+        }
+
         function jumpToBookingDate(b) {
             if (!b.booking_date) return;
-            const [y, m, d] = b.booking_date.split('-').map(Number);
+            const cleanDate = b.booking_date.toString().trim().split('T')[0];
+            const [y, m, d] = cleanDate.split('-').map(Number);
             currentDate = new Date(y, m - 1, 1);
             renderCalendar();
         }
     </script>
+
     <!-- Modal تفاصيل اليوم -->
     <div id="bookingModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
         <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right;">
@@ -540,6 +547,7 @@
             </div>
         </div>
     </div>
+
     <!-- Modal نتائج البحث -->
     <div id="searchSelectionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; justify-content:center; align-items:center;">
         <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right;">
