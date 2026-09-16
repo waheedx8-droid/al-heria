@@ -208,22 +208,11 @@
         let lastBookingsMapState = {};
         let swRegistration = null;
 
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').then(reg => {
-                    swRegistration = reg;
-                    console.log('Service Worker registered successfully');
-                }).catch(err => {
-                    console.log('Service Worker registration failed: ', err);
-                });
-            });
-        }
-
-        // جلب اسم المستخدم الحقيقي أو الصلاحية من التخزين المحلي (يدعم "حرف الام" أو أي اسم مسجل)
-        const currentUsername = localStorage.getItem('currentUsername') || localStorage.getItem('currentUserRole') || 'حرف الام';
+        // جلب اسم المستخدم الحقيقي المسجل في الذاكرة المحلية (مثل اسمك أو الصلاحية)
+        const currentUsername = localStorage.getItem('currentUsername') || localStorage.getItem('currentUserRole') || 'مدير النظام';
         const currentUserRole = localStorage.getItem('currentUserRole') || 'user';
         
-        // عرض اسم المستخدم الفعلي مكان كلمة مستخدم
+        // عرض اسم المستخدم الفعلي في شريط التحكم العلوي
         if (currentUserRole === 'admin') {
             document.getElementById('roleDisplay').textContent = `${currentUsername} (admin)`;
             document.getElementById('dashboardBtn').style.display = 'inline-block'; 
@@ -237,6 +226,17 @@
             document.getElementById('roleDisplay').textContent = `${currentUsername} (قراءة فقط)`;
         } else {
             document.getElementById('roleDisplay').textContent = currentUsername;
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    swRegistration = reg;
+                    console.log('Service Worker registered successfully');
+                }).catch(err => {
+                    console.log('Service Worker registration failed: ', err);
+                });
+            });
         }
 
         function playBeepSound() {
@@ -263,9 +263,7 @@
             if ('Notification' in window) {
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
-                    alert('تم تفعيل الصوت والإشعارات بنجاح ولن يظهر هذا الزر مرة أخرى!');
-                } else {
-                    alert('تم تفعيل الصوت بنجاح داخل التطبيق.');
+                    alert('تم تفعيل الصوت والإشعارات بنجاح!');
                 }
             }
         }
@@ -418,17 +416,6 @@
             if (currentUserRole === 'admin') {
                 fetchNotifications();
             }
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const jumpDate = urlParams.get('jumpDate');
-            if (jumpDate) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-                setTimeout(() => {
-                    const [bYear, bMonth, bDay] = jumpDate.split('-').map(Number);
-                    currentDate = new Date(bYear, bMonth - 1, 1);
-                    renderCalendar();
-                }, 100);
-            }
         }
 
         setInterval(() => {
@@ -482,17 +469,6 @@
         function changeMonth(offset) { currentDate.setMonth(currentDate.getMonth() + offset); renderCalendar(); }
         function goToToday() { currentDate = new Date(); renderCalendar(); }
         function logout() { localStorage.clear(); window.location.replace('index.html'); }
-        
-        let touchStartX = 0, touchEndX = 0;
-        const el = document.getElementById('calendarContainer');
-        if (el) {
-            el.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, {passive: true});
-            el.addEventListener('touchend', e => {
-                touchEndX = e.changedTouches[0].screenX;
-                if (touchEndX < touchStartX - 130) changeMonth(1);
-                if (touchEndX > touchStartX + 130) changeMonth(-1);
-            }, {passive: true});
-        }
 
         function openModal(dateStr, bookings) {
             document.getElementById('modalDateTitle').textContent = dateStr ? `حجوزات يوم: ${dateStr}` : 'إدارة اليوم';
