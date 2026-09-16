@@ -205,7 +205,7 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         let lastBookingsCount = 0;
-        let lastBookingsMapState = {}; // خريطة لتخزين حالة الحجوزات السابقة بدقة لمقارنة التواريخ
+        let lastBookingsMapState = {};
         let swRegistration = null;
 
         if ('serviceWorker' in navigator) {
@@ -219,10 +219,13 @@
             });
         }
 
+        // جلب اسم المستخدم الحقيقي أو الصلاحية من التخزين المحلي (يدعم "حرف الام" أو أي اسم مسجل)
+        const currentUsername = localStorage.getItem('currentUsername') || localStorage.getItem('currentUserRole') || 'حرف الام';
         const currentUserRole = localStorage.getItem('currentUserRole') || 'user';
         
+        // عرض اسم المستخدم الفعلي مكان كلمة مستخدم
         if (currentUserRole === 'admin') {
-            document.getElementById('roleDisplay').textContent = 'مدير (admin)';
+            document.getElementById('roleDisplay').textContent = `${currentUsername} (admin)`;
             document.getElementById('dashboardBtn').style.display = 'inline-block'; 
             document.getElementById('notifContainer').style.display = 'inline-block';
             
@@ -231,9 +234,9 @@
                 document.getElementById('soundToggleBtn').style.display = 'inline-block';
             }
         } else if (currentUserRole === 'read_only') {
-            document.getElementById('roleDisplay').textContent = 'قراءة فقط (Read Only)';
+            document.getElementById('roleDisplay').textContent = `${currentUsername} (قراءة فقط)`;
         } else {
-            document.getElementById('roleDisplay').textContent = 'مستخدم (user)';
+            document.getElementById('roleDisplay').textContent = currentUsername;
         }
 
         function playBeepSound() {
@@ -322,11 +325,10 @@
                         if (isBackgroundCheck && Object.keys(lastBookingsMapState).length > 0) {
                             if (currentUserRole === 'admin') {
                                 if (data.length > lastBookingsCount) {
-                                    triggerNewBookingAlert("حجز عرس جديد!", "قام المستخدم (حرف الام) بإضافة حجز عرس جديد.");
+                                    triggerNewBookingAlert("حجز عرس جديد!", `قام المستخدم (${currentUsername}) بإضافة حجز عرس جديد.`);
                                 } else if (data.length < lastBookingsCount) {
-                                    triggerNewBookingAlert("حذف حجز!", "قام المستخدم (حرف الام) بحذف حجز من النظام.");
+                                    triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${currentUsername}) بحذف حجز من النظام.`);
                                 } else {
-                                    // التحقق هل تم نقل الحجز وتغيير تاريخه أم تعديل عادي
                                     let updateDetected = false;
                                     for (let id in currentMapState) {
                                         if (lastBookingsMapState[id]) {
@@ -336,13 +338,13 @@
 
                                             if (oldDate !== newDate) {
                                                 updateDetected = true;
-                                                triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (للعريس: ${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (حرف الام).`);
+                                                triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (للعريس: ${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${currentUsername}).`);
                                                 break;
                                             }
                                         }
                                     }
                                     if (!updateDetected) {
-                                        triggerNewBookingAlert("تعديل حجز!", "قام المستخدم (حرف الام) بتعديل بيانات حجز.");
+                                        triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${currentUsername}) بتعديل بيانات حجز.`);
                                     }
                                 }
                             }
@@ -390,23 +392,21 @@
                   .channel('public:bookings_table')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
                       if (currentUserRole === 'admin') {
-                          let modifierName = "حرف الام";
-
                           if (payload.eventType === 'INSERT') {
                               let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
-                              triggerNewBookingAlert("حجز جديد!", `قام المستخدم (${modifierName}) بإضافة حجز جديد (${groom}).`);
+                              triggerNewBookingAlert("حجز جديد!", `قام المستخدم (${currentUsername}) بإضافة حجز جديد (${groom}).`);
                           } else if (payload.eventType === 'DELETE') {
                               let groom = payload.old && payload.old.groom_name ? payload.old.groom_name : '';
-                              triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${modifierName}) بحذف حجز (${groom}) من النظام.`);
+                              triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${currentUsername}) بحذف حجز (${groom}) من النظام.`);
                           } else if (payload.eventType === 'UPDATE') {
                               let oldDate = payload.old && payload.old.booking_date ? payload.old.booking_date.toString().split('T')[0] : '';
                               let newDate = payload.new && payload.new.booking_date ? payload.new.booking_date.toString().split('T')[0] : '';
                               let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
 
                               if (oldDate && newDate && oldDate !== newDate) {
-                                  triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${modifierName}).`);
+                                  triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${currentUsername}).`);
                               } else {
-                                  triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${modifierName}) بتعديل بيانات الحجز (${groom}).`);
+                                  triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${currentUsername}) بتعديل بيانات الحجز (${groom}).`);
                               }
                           }
                       }
