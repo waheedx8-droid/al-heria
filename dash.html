@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تقويم الحجوزات - نظام تنظيم الأعراس</title>
-    <!-- مكتبة Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -32,33 +30,52 @@
         }
         .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .calendar-header h2 { font-size: 17px; color: #2c3e50; }
-        .header-buttons { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .btn-nav { background: #3498db; color: white; border: none; padding: 7px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold; text-decoration: none; display: inline-block; }
+        .header-buttons { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; width: 100%; position: relative; }
+        .btn-nav { background: #3498db; color: white; border: none; padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold; text-decoration: none; display: inline-block; }
         .btn-nav:hover { background: #2980b9; }
         .logout { background: #e74c3c; }
         .logout:hover { background: #c0392b; }
-        .user-tag { background: #2c3e50; color: white; padding: 5px 8px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+        .user-tag { background: #2c3e50; color: white; padding: 4px 6px; border-radius: 20px; font-size: 10px; font-weight: bold; }
+        
         .notification-container { position: relative; display: inline-block; }
         .notification-badge-count { position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; padding: 2px 5px; font-size: 9px; font-weight: bold; }
+        
         .notification-dropdown { 
             display: none; 
             position: absolute; 
+            top: 100%; 
             left: 0; 
             right: auto; 
             background: #fff; 
             width: 250px; 
             max-width: 85vw; 
             box-shadow: 0px 8px 16px rgba(0,0,0,0.2); 
-            z-index: 1200; 
+            z-index: 9999; 
             border-radius: 6px; 
             padding: 8px; 
             text-align: right; 
             border: 1px solid #ddd;
+            margin-top: 5px;
         }
         .notification-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; cursor: pointer; color: #333; word-break: break-word; }
         .notification-item:hover { background: #f1f1f1; }
         .notification-item.unread { font-weight: bold; background: #fdf2e9; }
-        /* شبكة التقويم */
+        
+        #soundToggleBtn {
+            background: #8e44ad !important;
+            animation: pulse 1.2s infinite;
+            font-size: 12px !important;
+            padding: 8px 12px !important;
+            display: none;
+            color: #fff;
+            font-weight: bold;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(142, 68, 173, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(142, 68, 173, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(142, 68, 173, 0); }
+        }
+
         .calendar-grid { 
             display: grid; 
             grid-template-columns: repeat(7, minmax(0, 1fr)); 
@@ -133,10 +150,13 @@
                 <button class="btn-nav" onclick="changeMonth(-1)">الشهر السابق</button>
                 <button class="btn-nav" onclick="changeMonth(1)">الشهر التالي</button>
                 <button class="btn-nav" onclick="goToToday()" style="background: #27ae60;">اليوم</button>
-                <a id="dashboardBtn" href="index.html" class="btn-nav" style="background: #d35400; display: none;" title="العودة لوحة التحكم / تسجيل الدخول">لوحة التحكم</a>
+                <a id="dashboardBtn" href="index.html" class="btn-nav" style="background: #d35400; display: none;" title="لوحة التحكم">لوحة التحكم</a>
+                
+                <button id="soundToggleBtn" class="btn-nav" onclick="unlockAudioAndNotifications()">🔔 انقر هنا لتفعيل الصوت والإشعارات</button>
+
                 <div class="notification-container" id="notifContainer" style="display: none;">
                     <button class="btn-nav" onclick="toggleNotifications()" style="background: #e67e22;" title="الإشعارات">
-                        🔔 <span id="notifCount" class="notification-badge-count" style="display: none;">0</span>
+                        📬 <span id="notifCount" class="notification-badge-count" style="display: none;">0</span>
                     </button>
                     <div id="notifDropdown" class="notification-dropdown">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
@@ -148,6 +168,7 @@
                         </div>
                     </div>
                 </div>
+
                 <span id="roleDisplay" class="user-tag">user</span>
                 <button class="btn-nav logout" onclick="logout()">خروج</button>
             </div>
@@ -162,31 +183,151 @@
             <div class="day-header">الجمعة</div>
         </div>
     </div>
+
+    <!-- نافذة منبثقة فورية للتنبيه داخل التطبيق -->
+    <div id="liveAlertModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; justify-content:center; align-items:center;">
+        <div style="background:#fff; padding:20px; border-radius:10px; width:90%; max-width:350px; text-align:center; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
+            <div style="font-size:35px; margin-bottom:10px;">🔔</div>
+            <h3 id="liveAlertTitle" style="color:#c0392b; margin-bottom:10px; font-size:18px;">تنبيه تغيير في النظام!</h3>
+            <p id="liveAlertText" style="color:#333; font-size:13px; margin-bottom:15px; line-height:1.5;"></p>
+            <button onclick="closeLiveAlert()" style="background:#27ae60; color:#fff; border:none; padding:8px 20px; border-radius:5px; font-size:13px; font-weight:bold; cursor:pointer; width:100%;">حسناً، فهمت</button>
+        </div>
+    </div>
+
+    <!-- ملف الصوت المحلي alert.mp3 الموجود في نفس المجلد -->
+    <audio id="alertAudio" preload="auto">
+        <source src="alert.mp3" type="audio/mpeg">
+    </audio>
+
     <script>
-        const SUPABASE_URL = 'https://ylcccnitnvlarrweguxi.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_iCjCSR9_Cen1rhA5fH6uKg_s4MYlQ1o'; 
+        const SUPABASE_URL = 'https://lgzhmamxyawldbpucxeu.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_V_ZFiFCH2QD2_kLqPY9JBg_ndDdXMJ_'; 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        const monthNames = [
-            "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-            "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
-        ];
-        let currentDate = new Date(); 
+        
+        let lastBookingsCount = 0;
+        let lastBookingsStateJSON = "";
+        let swRegistration = null;
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    swRegistration = reg;
+                    console.log('Service Worker registered successfully');
+                }).catch(err => {
+                    console.log('Service Worker registration failed: ', err);
+                });
+            });
+        }
+
         const currentUserRole = localStorage.getItem('currentUserRole') || 'user';
+        
         if (currentUserRole === 'admin') {
             document.getElementById('roleDisplay').textContent = 'مدير (admin)';
+            document.getElementById('dashboardBtn').style.display = 'inline-block'; 
             document.getElementById('notifContainer').style.display = 'inline-block';
-            document.getElementById('dashboardBtn').style.display = 'inline-block'; // يظهر للأدمن فقط هنا
+            
+            const isSoundAllowed = localStorage.getItem('pwa_sound_allowed');
+            if (!isSoundAllowed) {
+                document.getElementById('soundToggleBtn').style.display = 'inline-block';
+            }
         } else if (currentUserRole === 'read_only') {
             document.getElementById('roleDisplay').textContent = 'قراءة فقط (Read Only)';
         } else {
             document.getElementById('roleDisplay').textContent = 'مستخدم (user)';
         }
+
+        function playBeepSound() {
+            try {
+                const audio = document.getElementById('alertAudio');
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(e => console.log("Audio play blocked:", e));
+                }
+            } catch(e) {
+                console.log("Sound error:", e);
+            }
+        }
+
+        async function unlockAudioAndNotifications() {
+            localStorage.setItem('pwa_sound_allowed', 'true');
+            document.getElementById('soundToggleBtn').style.display = 'none';
+
+            playBeepSound();
+            if ('vibrate' in navigator) {
+                navigator.vibrate(300);
+            }
+
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    alert('تم تفعيل الصوت والإشعارات بنجاح ولن يظهر هذا الزر مرة أخرى!');
+                } else {
+                    alert('تم تفعيل الصوت بنجاح داخل التطبيق.');
+                }
+            }
+        }
+
+        function triggerNewBookingAlert(title, message) {
+            playBeepSound();
+            if ('vibrate' in navigator) {
+                navigator.vibrate([800, 200, 800, 200, 800]);
+            }
+
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: title,
+                    body: message
+                });
+            } else if (swRegistration && swRegistration.active) {
+                swRegistration.active.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: title,
+                    body: message
+                });
+            }
+
+            if (currentUserRole === 'admin') {
+                document.getElementById('liveAlertTitle').textContent = title;
+                document.getElementById('liveAlertText').textContent = message;
+                document.getElementById('liveAlertModal').style.display = 'flex';
+            }
+        }
+
+        function closeLiveAlert() {
+            document.getElementById('liveAlertModal').style.display = 'none';
+            location.reload();
+        }
+
+        const monthNames = [
+            "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+            "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+        ];
+        let currentDate = new Date(); 
         let allBookingsMap = {};
-        async function initCalendarSystem() {
+
+        async function initCalendarSystem(isBackgroundCheck = false) {
             try {
                 if (supabaseClient) {
                     const { data, error } = await supabaseClient.from('bookings_table').select('*');
                     if (!error && data) {
+                        const currentStateJSON = JSON.stringify(data);
+
+                        if (isBackgroundCheck && lastBookingsStateJSON !== "" && currentStateJSON !== lastBookingsStateJSON) {
+                            if (currentUserRole === 'admin') {
+                                if (data.length > lastBookingsCount) {
+                                    triggerNewBookingAlert("حجز عرس جديد!", "تمت إضافة حجز عرس جديد إلى النظام.");
+                                } else if (data.length < lastBookingsCount) {
+                                    triggerNewBookingAlert("حذف حجز!", "تم حذف حجز من النظام.");
+                                } else {
+                                    triggerNewBookingAlert("تعديل حجز!", "تم تعديل بيانات حجز في النظام.");
+                                }
+                            }
+                        }
+
+                        lastBookingsCount = data.length;
+                        lastBookingsStateJSON = currentStateJSON;
+
                         allBookingsMap = {};
                         data.forEach(item => {
                             if (!item.booking_date) return;
@@ -219,17 +360,33 @@
                 console.error('خطأ في جلب الحجوزات:', e);
             }
             renderCalendar();
+            
+            if (supabaseClient && !window.realtimeInitialized) {
+                window.realtimeInitialized = true;
+                supabaseClient
+                  .channel('public:bookings_table')
+                  .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
+                      if (currentUserRole === 'admin') {
+                          // استخراج اسم المستخدم الذي قام بالتعديل/الحفظ من السجل الجديد إن وجد
+                          let modifierName = (payload.new && payload.new.updated_by) ? payload.new.updated_by : 'مستخدم النظام';
+
+                          if (payload.eventType === 'INSERT') {
+                              triggerNewBookingAlert("حجز جديد!", `قام (${modifierName}) بإضافة حجز عرس جديد.`);
+                          } else if (payload.eventType === 'DELETE') {
+                              triggerNewBookingAlert("حذف حجز!", `تم حذف حجز من النظام.`);
+                          } else if (payload.eventType === 'UPDATE') {
+                              triggerNewBookingAlert("تعديل حجز!", `قام (${modifierName}) بتعديل بيانات حجز.`);
+                          }
+                      }
+                      initCalendarSystem(false);
+                  })
+                  .subscribe();
+            }
+
             if (currentUserRole === 'admin') {
                 fetchNotifications();
-                if (supabaseClient) {
-                    supabaseClient
-                      .channel('public:notifications')
-                      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => {
-                          fetchNotifications();
-                      })
-                      .subscribe();
-                }
             }
+
             const urlParams = new URLSearchParams(window.location.search);
             const jumpDate = urlParams.get('jumpDate');
             if (jumpDate) {
@@ -238,32 +395,21 @@
                     const [bYear, bMonth, bDay] = jumpDate.split('-').map(Number);
                     currentDate = new Date(bYear, bMonth - 1, 1);
                     renderCalendar();
-                    setTimeout(() => {
-                        const cells = document.querySelectorAll('.day-cell');
-                        cells.forEach(cell => {
-                            const dayNumElem = cell.querySelector('.day-number');
-                            if (dayNumElem && parseInt(dayNumElem.textContent) === bDay) {
-                                cell.style.transition = 'all 0.5s ease';
-                                cell.style.border = '2px solid #e74c3c';
-                                cell.style.backgroundColor = '#fadbd8';
-                                setTimeout(() => {
-                                    cell.style.border = '1px solid #e0e0e0';
-                                    cell.style.backgroundColor = '#fafafa';
-                                }, 3500);
-                            }
-                        });
-                    }, 150);
                 }, 100);
             }
         }
+
+        setInterval(() => {
+            initCalendarSystem(true);
+        }, 5000);
+
         function renderCalendar() {
             const year = currentDate.getFullYear();
             const monthIndex = currentDate.getMonth();
             const monthNumber = monthIndex + 1;
-            const headerText = `${monthNames[monthIndex]} (${monthNumber}) - ${year}`;
-            document.getElementById('monthYearDisplay').innerHTML = headerText;
+            document.getElementById('monthYearDisplay').innerHTML = `${monthNames[monthIndex]} (${monthNumber}) - ${year}`;
             const daysContainer = document.getElementById('calendarDays');
-            const headersHTML = `
+            daysContainer.innerHTML = `
                 <div class="day-header">السبت</div>
                 <div class="day-header">الأحد</div>
                 <div class="day-header">الإثنين</div>
@@ -272,7 +418,6 @@
                 <div class="day-header">الخميس</div>
                 <div class="day-header">الجمعة</div>
             `;
-            daysContainer.innerHTML = headersHTML;
             const jsDay = new Date(year, monthIndex, 1).getDay();
             const firstDayIndex = (jsDay + 1) % 7; 
             const totalDays = new Date(year, monthIndex + 1, 0).getDate();
@@ -281,278 +426,144 @@
                 emptyCell.className = 'day-cell';
                 emptyCell.style.background = '#fcfcfc';
                 emptyCell.style.border = 'none';
-                emptyCell.style.cursor = 'pointer';
                 emptyCell.onclick = () => openModal('', []);
                 daysContainer.appendChild(emptyCell);
             }
             for (let day = 1; day <= totalDays; day++) {
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
-                const formattedMonth = String(monthNumber).padStart(2, '0');
-                const formattedDay = String(day).padStart(2, '0');
-                const fullDatestr = `${year}-${formattedMonth}-${formattedDay}`;
+                const fullDatestr = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 let cellContent = `<div class="day-number">${day}</div>`;
-                const dayBookings = allBookingsMap[fullDatestr] && allBookingsMap[fullDatestr].length > 0 ? allBookingsMap[fullDatestr] : [];
+                const dayBookings = allBookingsMap[fullDatestr] || [];
                 dayCell.onclick = () => openModal(fullDatestr, dayBookings);
-                if (dayBookings.length > 0) {
-                    dayBookings.forEach(booking => {
-                        const customBgColor = booking.boxColor || '#27ae60';
-                        cellContent += `
-                            <div class="booking-badge" style="background-color: ${customBgColor};" title="${booking.groomName}">
-                                <span class="badge-hall"> ${booking.hallName}</span>
-                            </div>
-                        `;
-                    });
-                } 
+                dayBookings.forEach(booking => {
+                    cellContent += `
+                        <div class="booking-badge" style="background-color: ${booking.boxColor};" title="${booking.groomName}">
+                            <span class="badge-hall"> ${booking.hallName}</span>
+                        </div>
+                    `;
+                });
                 dayCell.innerHTML = cellContent;
                 daysContainer.appendChild(dayCell);
             }
         }
-        function changeMonth(offset) {
-            currentDate.setMonth(currentDate.getMonth() + offset);
-            renderCalendar();
+        function changeMonth(offset) { currentDate.setMonth(currentDate.getMonth() + offset); renderCalendar(); }
+        function goToToday() { currentDate = new Date(); renderCalendar(); }
+        function logout() { localStorage.clear(); window.location.replace('index.html'); }
+        
+        let touchStartX = 0, touchEndX = 0;
+        const el = document.getElementById('calendarContainer');
+        if (el) {
+            el.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, {passive: true});
+            el.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                if (touchEndX < touchStartX - 130) changeMonth(1);
+                if (touchEndX > touchStartX + 130) changeMonth(-1);
+            }, {passive: true});
         }
-        function goToToday() {
-            currentDate = new Date(); 
-            renderCalendar();
-        }
-        function logout() {
-            localStorage.removeItem('currentUserRole');
-            localStorage.removeItem('currentUsername');
-            window.location.replace('index.html');
-        }
-        let touchStartX = 0;
-        let touchEndX = 0;
-        const calendarContainerEl = document.getElementById('calendarContainer');
-        calendarContainerEl.addEventListener('touchstart', e => {
-            touchStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-        calendarContainerEl.addEventListener('touchend', e => {
-            touchEndX = e.changedTouches[0].screenX;
-            handleSwipeGesture();
-        }, { passive: true });
-        function handleSwipeGesture() {
-            const threshold = 130; 
-            if (touchEndX < touchStartX - threshold) {
-                changeMonth(1);
-            }
-            if (touchEndX > touchStartX + threshold) {
-                changeMonth(-1);
-            }
-        }
+
         function openModal(dateStr, bookings) {
             document.getElementById('modalDateTitle').textContent = dateStr ? `حجوزات يوم: ${dateStr}` : 'إدارة اليوم';
-            let listHTML = '';
-            if (bookings.length === 0) {
-                listHTML = '<p style="text-align:center; color:#777; font-size:12px; padding:10px;">لا توجد حجوزات مسجلة في هذا اليوم.</p>';
-            } else {
-                bookings.forEach(b => {
-                    let detailsButtonHTML = '';
-                    if (currentUserRole !== 'read_only') {
-                        detailsButtonHTML = `<a href="contract.html?date=${dateStr}&id=${b.id}" class="btn-nav" style="padding:4px 8px; font-size:11px; text-decoration:none; background:#2980b9;">عرض التفاصيل</a>`;
-                    }
-                    listHTML += `
-                        <div style="background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:4px; margin-bottom:6px; font-size:12px; display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <strong>العريس:</strong> ${b.groomName}<br>
-                                <span style="color:#555;"><strong>الصالة:</strong> ${b.hallName}</span>
-                            </div>
-                            ${detailsButtonHTML}
-                        </div>
-                    `;
-                });
-            }
+            let listHTML = bookings.length === 0 ? '<p style="text-align:center; color:#777; font-size:12px; padding:10px;">لا توجد حجوزات مسجلة.</p>' : '';
+            bookings.forEach(b => {
+                let btn = currentUserRole !== 'read_only' ? `<a href="contract.html?date=${dateStr}&id=${b.id}" class="btn-nav" style="padding:4px 8px; font-size:11px; background:#2980b9;">التفاصيل</a>` : '';
+                listHTML += `<div style="background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:4px; margin-bottom:6px; font-size:12px; display:flex; justify-content:space-between; align-items:center;"><div><strong>العريس:</strong> ${b.groomName}<br><span style="color:#555;"><strong>الصالة:</strong> ${b.hallName}</span></div>${btn}</div>`;
+            });
             document.getElementById('modalBookingsList').innerHTML = listHTML;
-            const addBtnElement = document.getElementById('modalAddBtn');
-            if (currentUserRole === 'read_only') {
-                addBtnElement.style.display = 'none';
-            } else {
-                addBtnElement.style.display = 'block';
-                addBtnElement.href = dateStr ? `contract.html?date=${dateStr}` : 'contract.html';
-            }
+            const addBtn = document.getElementById('modalAddBtn');
+            addBtn.style.display = currentUserRole === 'read_only' ? 'none' : 'block';
+            addBtn.href = dateStr ? `contract.html?date=${dateStr}` : 'contract.html';
             document.getElementById('bookingModal').style.display = 'flex';
         }
-        initCalendarSystem();
+
+        initCalendarSystem(false);
+
         async function fetchNotifications() {
             try {
-                const { data, error } = await supabaseClient
-                    .from('notifications')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(10);
+                const { data, error } = await supabaseClient.from('notifications').select('*').order('created_at', { ascending: false }).limit(10);
                 if (!error && data) {
-                    const unreadCount = data.filter(n => !n.is_read).length;
+                    const unread = data.filter(n => !n.is_read).length;
                     const countSpan = document.getElementById('notifCount');
-                    if (unreadCount > 0) {
-                        countSpan.textContent = unreadCount;
-                        countSpan.style.display = 'inline-block';
-                    } else {
-                        countSpan.style.display = 'none';
-                    }
-                    let listHTML = '';
-                    if (data.length === 0) {
-                        listHTML = '<div style="padding: 8px; text-align: center; color: #777; font-size: 11px;">لا توجد إشعارات</div>';
-                    } else {
-                        data.forEach(n => {
-                            const unreadClass = n.is_read ? '' : 'unread';
-                            listHTML += `
-                                <div class="notification-item ${unreadClass}" onclick="openNotificationLink(event, ${n.id}, '${n.link}')">
-                                    <strong>${n.title}</strong>
-                                    <p style="margin: 2px 0 0 0; color: #555; font-size: 11px;">${n.message}</p>
-                                </div>
-                            `;
-                        });
-                    }
-                    document.getElementById('notifList').innerHTML = listHTML;
+                    countSpan.textContent = unread;
+                    countSpan.style.display = unread > 0 ? 'inline-block' : 'none';
+                    
+                    document.getElementById('notifList').innerHTML = data.length === 0 ? '<div style="padding: 8px; text-align: center; color: #777; font-size: 11px;">لا توجد إشعارات</div>' : data.map(n => `
+                        <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="openNotificationLink(event, ${n.id}, '${n.link}')">
+                            <strong>${n.title}</strong>
+                            <p style="margin: 2px 0 0 0; color: #555; font-size: 11px;">${n.message}</p>
+                        </div>
+                    `).join('');
                 }
-            } catch (e) {
-                console.error('خطأ في جلب الإشعارات:', e);
-            }
+            } catch (e) { console.error(e); }
         }
+
         function toggleNotifications() {
-            const dropdown = document.getElementById('notifDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            const d = document.getElementById('notifDropdown');
+            d.style.display = d.style.display === 'block' ? 'none' : 'block';
         }
+
         async function clearAllNotifications() {
-            if (!confirm('هل أنت متأكد من حذف جميع الإشعارات؟')) return;
+            if (!confirm('حذف جميع الإشعارات؟')) return;
+            await supabaseClient.from('notifications').delete().neq('id', 0);
+            fetchNotifications();
+        }
 
-            try {
-                const { error } = await supabaseClient
-                    .from('notifications')
-                    .delete()
-                    .neq('id', 0);
-                if (error) throw error;
-                fetchNotifications();
-            } catch (e) {
-                console.error('خطأ أثناء حذف الإشعارات:', e);
-                alert('حدث خطأ أثناء مسح الإشعارات.');
-            }
+        async function openNotificationLink(e, id, link) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            await supabaseClient.from('notifications').update({ is_read: true }).eq('id', id);
+            window.location.href = link;
         }
-        async function openNotificationLink(event, notificationId, link) {
-            if (event) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            try {
-                await supabaseClient
-                    .from('notifications')
-                    .update({ is_read: true })
-                    .eq('id', notificationId);
-                window.location.href = link;
-            } catch (e) {
-                window.location.href = link;
-            }
+
+        function normalizeArabicText(t) {
+            return !t ? '' : t.toString().toLowerCase().replace(/[\s\-_]/g, '').replace(/[أإآا]/g, 'ا').replace(/[ةه]/g, 'ه').replace(/[ىي]/g, 'ي');
         }
-        function normalizeArabicText(text) {
-            if (!text) return '';
-            return text
-                .toString()
-                .toLowerCase()
-                .replace(/[\s\-_]/g, '')
-                .replace(/[أإآا]/g, 'ا')
-                .replace(/[ةه]/g, 'ه')
-                .replace(/[ىي]/g, 'ي');
-        }
+
         async function searchGroom() {
-            const rawQuery = document.getElementById('searchInput').value.trim();
-            if (!rawQuery) {
-                alert('الرجاء إدخال اسم العريس للبحث.');
-                return;
-            }
-            const cleanQuery = normalizeArabicText(rawQuery);
-            try {
-                const { data, error } = await supabaseClient.from('bookings_table').select('*');
-                if (error) throw error;
-
-                if (!data || data.length === 0) {
-                    alert('لا توجد حجوزات مسجلة حالياً.');
-                    return;
-                }
-                const matchedBookings = data.filter(item => {
-                    const cleanGroomName = normalizeArabicText(item.groom_name);
-                    return cleanGroomName.includes(cleanQuery);
-                });
-                if (matchedBookings.length === 0) {
-                    alert('لم يتم العثور على أي حجز مطابق أو قريب من هذا الاسم.');
-                    return;
-                }
-                showSearchSelectionModal(matchedBookings);
-
-            } catch (e) {
-                console.error('خطأ أثناء البحث:', e);
-                alert('حدث خطأ أثناء الاتصال بقاعدة البيانات للبحث.');
-            }
-        }
-        function showSearchSelectionModal(bookings) {
-            document.getElementById('searchCountText').textContent = `تم العثور على (${bookings.length}) نتيجة مطابقة. اختر الحجز المطلوب:`;
-            let listHTML = '';
-            bookings.forEach((b) => {
-                const badgeColor = b.box_color || b.boxColor || '#27ae60';
-                const bookingObjStr = JSON.stringify({
-                    booking_date: b.booking_date,
-                    groom_name: b.groom_name,
-                    hall_name: b.hall_name
-                }).replace(/"/g, '&quot;');
-                listHTML += `
-                    <div onclick='selectAndJump(${bookingObjStr})' style="background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:5px; margin-bottom:6px; cursor:pointer;">
-                        <p style="margin:0 0 2px 0; font-size:12px;"><strong>العريس:</strong> ${b.groom_name}</p>
-                        <p style="margin:0 0 2px 0; font-size:11px; color:#555;"><strong>التاريخ:</strong> ${b.booking_date} | <strong>الصالة:</strong> ${b.hall_name}</p>
-                        <span style="display:inline-block; background:${badgeColor}; color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; margin-top:3px;">انتقال للحجز</span>
-                    </div>
-                `;
-            });
-            document.getElementById('searchSelectionList').innerHTML = listHTML;
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) { alert('ادخل اسم العريس للبحث.'); return; }
+            const { data } = await supabaseClient.from('bookings_table').select('*');
+            if (!data || data.length === 0) { alert('لا توجد حجوزات.'); return; }
+            const matched = data.filter(i => normalizeArabicText(i.groom_name).includes(normalizeArabicText(query)));
+            if (matched.length === 0) { alert('لم يتم العثور على نتائج.'); return; }
+            
+            document.getElementById('searchCountText').textContent = `تم العثور على (${matched.length}) نتيجة:`;
+            document.getElementById('searchSelectionList').innerHTML = matched.map(b => `
+                <div onclick='selectAndJump(${JSON.stringify(b)})' style="background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:5px; margin-bottom:6px; cursor:pointer;">
+                    <p style="margin:0 0 2px 0; font-size:12px;"><strong>العريس:</strong> ${b.groom_name}</p>
+                    <p style="margin:0 0 2px 0; font-size:11px; color:#555;"><strong>التاريخ:</strong> ${b.booking_date} | <strong>الصالة:</strong> ${b.hall_name}</p>
+                </div>
+            `).join('');
             document.getElementById('searchSelectionModal').style.display = 'flex';
         }
-        function closeSearchSelectionModal() {
-            document.getElementById('searchSelectionModal').style.display = 'none';
-        }
-        function selectAndJump(booking) {
-            closeSearchSelectionModal();
-            jumpToBookingDate(booking);
-        }
-        function jumpToBookingDate(booking) {
-            const bookingDateStr = booking.booking_date; 
-            if (!bookingDateStr) return;
-            const [bYear, bMonth, bDay] = bookingDateStr.split('-').map(Number);
-            currentDate = new Date(bYear, bMonth - 1, 1);
+
+        function closeSearchSelectionModal() { document.getElementById('searchSelectionModal').style.display = 'none'; }
+        function selectAndJump(b) { closeSearchSelectionModal(); jumpToBookingDate(b); }
+        function jumpToBookingDate(b) {
+            if (!b.booking_date) return;
+            const [y, m, d] = b.booking_date.split('-').map(Number);
+            currentDate = new Date(y, m - 1, 1);
             renderCalendar();
-            setTimeout(() => {
-                const cells = document.querySelectorAll('.day-cell');
-                cells.forEach(cell => {
-                    const dayNumElem = cell.querySelector('.day-number');
-                    if (dayNumElem && parseInt(dayNumElem.textContent) === bDay) {
-                        cell.style.transition = 'all 0.5s ease';
-                        cell.style.border = '2px solid #e74c3c';
-                        cell.style.backgroundColor = '#fadbd8';
-                        setTimeout(() => {
-                            cell.style.border = '1px solid #e0e0e0';
-                            cell.style.backgroundColor = '#fafafa';
-                        }, 3000);
-                    }
-                });
-            }, 100);
         }
     </script>
-    <!-- القائمة المنبثقة للتفاصيل اليومية -->
+    <!-- Modal تفاصيل اليوم -->
     <div id="bookingModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+        <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right;">
             <h3 id="modalDateTitle" style="margin-bottom:12px; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:6px; font-size:15px;"></h3>
             <div id="modalBookingsList" style="max-height:220px; overflow-y:auto; margin-bottom:12px;"></div>
-            <div style="display:flex; gap:8px; justify-content:space-between;">
-                <a id="modalAddBtn" href="#" class="btn-nav" style="text-align:center; flex:1; text-decoration:none; background:#27ae60;">+ إضافة عقد جديد</a>
-                <button onclick="document.getElementById('bookingModal').style.display = 'none'" class="btn-nav logout" style="cursor:pointer;">إغلاق</button>
+            <div style="display:flex; gap:8px;">
+                <a id="modalAddBtn" href="#" class="btn-nav" style="text-align:center; flex:1; text-decoration:none; background:#27ae60;">+ إضافة عقد</a>
+                <button onclick="document.getElementById('bookingModal').style.display = 'none'" class="btn-nav logout">إغلاق</button>
             </div>
         </div>
     </div>
-    <!-- قائمة منبثقة لاختيار النتائج عند البحث -->
+    <!-- Modal نتائج البحث -->
     <div id="searchSelectionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1100; justify-content:center; align-items:center;">
-        <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+        <div style="background:#fff; padding:15px; border-radius:8px; width:90%; max-width:380px; text-align:right;">
             <h3 style="margin-bottom:8px; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:6px; font-size:15px;">نتائج البحث</h3>
             <p id="searchCountText" style="font-size:12px; color:#555; margin-bottom:8px;"></p>
             <div id="searchSelectionList" style="max-height:220px; overflow-y:auto; margin-bottom:12px;"></div>
             <div style="display:flex; justify-content:flex-end;">
-                <button onclick="closeSearchSelectionModal()" class="btn-nav logout" style="cursor:pointer; padding:5px 10px; font-size:11px;">إغلاق</button>
+                <button onclick="closeSearchSelectionModal()" class="btn-nav logout" style="padding:5px 10px; font-size:11px;">إغلاق</button>
             </div>
         </div>
     </div>
