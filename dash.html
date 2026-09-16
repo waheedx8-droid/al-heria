@@ -212,50 +212,31 @@
 
         async function fetchUserDataFromSettings() {
             try {
-                // البحث عن اسم المستخدم في جميع المفاتيح المحتملة التي قد يتم تخزينها عند تسجيل الدخول
-                let directUser = localStorage.getItem('loggedCustomUser') || 
-                                 localStorage.getItem('currentUser') || 
-                                 localStorage.getItem('username') || 
-                                 localStorage.getItem('user');
-                                 
-                let savedVal = localStorage.getItem('currentVal') || 
-                               localStorage.getItem('currentUserRole');
-
-                if (directUser) {
-                    currentUsername = directUser;
-                }
-
+                // جلب البيانات من جدول الإعدادات في Supabase مباشرة مع الاعتماد على عمود custom_user
                 const { data, error } = await supabaseClient.from('settings_table').select('*');
                 
+                console.log("Settings Table Data:", data);
+
                 if (!error && data && data.length > 0) {
-                    let matchedRow = null;
+                    let activeRow = data[0]; 
 
-                    if (directUser) {
-                        matchedRow = data.find(row => String(row.custom_user).trim() === String(directUser).trim());
+                    let localUser = localStorage.getItem('loggedCustomUser') || localStorage.getItem('username');
+                    if (localUser) {
+                        let found = data.find(row => row.custom_user && String(row.custom_user).trim() === String(localUser).trim());
+                        if (found) {
+                            activeRow = found;
+                        }
                     }
 
-                    if (!matchedRow && savedVal) {
-                        matchedRow = data.find(row => 
-                            String(row.val).trim() === String(savedVal).trim() || 
-                            String(row.role_user).trim() === String(savedVal).trim() ||
-                            String(row.custom_user).trim() === String(savedVal).trim() ||
-                            String(row.id).trim() === String(savedVal).trim()
-                        );
-                    }
-
-                    // إذا لم يتم العثور على مطابقة دقيقة ولكي لا يظهر كلمة "مستخدم"، نأخذ أول مستخدم مسجل إذا كان متاحاً أو القيمة المخزنة
-                    if (matchedRow) {
-                        currentUsername = matchedRow.custom_user || matchedRow.val || currentUsername;
-                        currentUserRole = matchedRow.role_user || 'user';
-                    } else if (!directUser && data.length === 1) {
-                        currentUsername = data[0].custom_user || 'مستخدم';
-                        currentUserRole = data[0].role_user || 'user';
-                    }
+                    // جلب القيمة حصراً من عمود custom_user
+                    currentUsername = activeRow.custom_user || 'مستخدم';
+                    currentUserRole = activeRow.role_user || 'user';
                 }
             } catch (e) {
                 console.error("خطأ في جلب بيانات المستخدم:", e);
             }
 
+            // تحديث الواجهة بالعضوية واسم المستخدم
             const roleDisplay = document.getElementById('roleDisplay');
             if (currentUserRole === 'admin') {
                 roleDisplay.textContent = `${currentUsername} (مدير النظام)`;
