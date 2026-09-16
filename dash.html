@@ -194,7 +194,6 @@
         </div>
     </div>
 
-    <!-- ملف الصوت المحلي alert.mp3 الموجود في نفس المجلد -->
     <audio id="alertAudio" preload="auto">
         <source src="alert.mp3" type="audio/mpeg">
     </audio>
@@ -211,44 +210,52 @@
         let currentUsername = 'مستخدم';
         let currentUserRole = 'user';
 
-        // جلب اسم المستخدم مباشرة من حقل custom_user بناءً على القيمة المخزنة
+        // دالة جلب اسم المستخدم الذكية المباشرة
         async function fetchUserDataFromSettings() {
             try {
+                // 1. فحص هل اسم المستخدم مخزّن مسبقاً بشكل مباشر من صفحة الاندكس
+                let directUser = localStorage.getItem('loggedCustomUser');
                 let savedVal = localStorage.getItem('currentVal') || 
                                localStorage.getItem('currentUserRole') || 
                                localStorage.getItem('currentUser') || 
                                localStorage.getItem('user') ||
                                localStorage.getItem('username');
 
-                if (savedVal) {
-                    currentUsername = savedVal; 
-                    
-                    const { data, error } = await supabaseClient.from('settings_table').select('*');
-                    
-                    if (!error && data && data.length > 0) {
-                        let matchedRow = data.find(row => 
+                if (directUser) {
+                    currentUsername = directUser;
+                } else if (savedVal) {
+                    currentUsername = savedVal;
+                }
+
+                // 2. جلب البيانات من جدول الإعدادات للتأكد من الصلاحيات وحقل custom_user الدقيق
+                const { data, error } = await supabaseClient.from('settings_table').select('*');
+                
+                if (!error && data && data.length > 0) {
+                    let matchedRow = null;
+
+                    if (directUser) {
+                        matchedRow = data.find(row => String(row.custom_user).trim() === String(directUser).trim());
+                    }
+
+                    if (!matchedRow && savedVal) {
+                        matchedRow = data.find(row => 
                             String(row.val).trim() === String(savedVal).trim() || 
                             String(row.role_user).trim() === String(savedVal).trim() ||
                             String(row.custom_user).trim() === String(savedVal).trim() ||
                             String(row.id).trim() === String(savedVal).trim()
                         );
-
-                        if (matchedRow) {
-                            // الاعتماد الأساسي على حقل custom_user لاسم المستخدم
-                            if (matchedRow.custom_user) {
-                                currentUsername = matchedRow.custom_user;
-                            }
-                            currentUserRole = matchedRow.role_user || 'user';
-                        } else {
-                            let adminRow = data.find(row => String(row.val).trim() === String(savedVal).trim());
-                            if (adminRow && adminRow.role_user === 'admin') {
-                                currentUserRole = 'admin';
-                            }
-                        }
                     }
-                } else {
-                    currentUsername = 'مستخدم';
-                    currentUserRole = 'user';
+
+                    // إذا لم نجد تطابق دقيق وكان هناك سطر واحد أو سطر افتراضي (أو أول مستخدم) نلجأ إليه، أو نأخذ أول custom_user متوفر إذا كان مستخدماً عادياً
+                    if (matchedRow) {
+                        if (matchedRow.custom_user) {
+                            currentUsername = matchedRow.custom_user;
+                        }
+                        currentUserRole = matchedRow.role_user || 'user';
+                    } else if (data.length === 1) {
+                        currentUsername = data[0].custom_user || 'مستخدم';
+                        currentUserRole = data[0].role_user || 'user';
+                    }
                 }
             } catch (e) {
                 console.error("خطأ في جلب بيانات المستخدم:", e);
@@ -275,9 +282,8 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').then(reg => {
                     swRegistration = reg;
-                    console.log('Service Worker registered successfully');
                 }).catch(err => {
-                    console.log('Service Worker registration failed: ', err);
+                    console.log('SW error: ', err);
                 });
             });
         }
@@ -287,48 +293,29 @@
                 const audio = document.getElementById('alertAudio');
                 if (audio) {
                     audio.currentTime = 0;
-                    audio.play().catch(e => console.log("Audio play blocked:", e));
+                    audio.play().catch(e => console.log("Audio block:", e));
                 }
-            } catch(e) {
-                console.log("Sound error:", e);
-            }
+            } catch(e) {}
         }
 
         async function unlockAudioAndNotifications() {
             localStorage.setItem('pwa_sound_allowed', 'true');
             document.getElementById('soundToggleBtn').style.display = 'none';
-
             playBeepSound();
-            if ('vibrate' in navigator) {
-                navigator.vibrate(300);
-            }
-
+            if ('vibrate' in navigator) navigator.vibrate(300);
             if ('Notification' in window) {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    alert('تم تفعيل الصوت والإشعارات بنجاح!');
-                }
+                await Notification.requestPermission();
             }
         }
 
         function triggerNewBookingAlert(title, message) {
             playBeepSound();
-            if ('vibrate' in navigator) {
-                navigator.vibrate([800, 200, 800, 200, 800]);
-            }
+            if ('vibrate' in navigator) navigator.vibrate([800, 200, 800, 200, 800]);
 
             if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'SHOW_NOTIFICATION',
-                    title: title,
-                    body: message
-                });
+                navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title: title, body: message });
             } else if (swRegistration && swRegistration.active) {
-                swRegistration.active.postMessage({
-                    type: 'SHOW_NOTIFICATION',
-                    title: title,
-                    body: message
-                });
+                swRegistration.active.postMessage({ type: 'SHOW_NOTIFICATION', title: title, body: message });
             }
 
             if (currentUserRole === 'admin') {
@@ -369,24 +356,6 @@
                                     triggerNewBookingAlert("حجز عرس جديد!", `قام المستخدم (${currentUsername}) بإضافة حجز عرس جديد.`);
                                 } else if (data.length < lastBookingsCount) {
                                     triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${currentUsername}) بحذف حجز من النظام.`);
-                                } else {
-                                    let updateDetected = false;
-                                    for (let id in currentMapState) {
-                                        if (lastBookingsMapState[id]) {
-                                            let oldDate = lastBookingsMapState[id].booking_date;
-                                            let newDate = currentMapState[id].booking_date;
-                                            let groom = currentMapState[id].groom_name;
-
-                                            if (oldDate !== newDate) {
-                                                updateDetected = true;
-                                                triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (للعريس: ${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${currentUsername}).`);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    if (!updateDetected) {
-                                        triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${currentUsername}) بتعديل بيانات حجز.`);
-                                    }
                                 }
                             }
                         }
@@ -398,21 +367,13 @@
                         data.forEach(item => {
                             if (!item.booking_date) return;
                             let rawDate = item.booking_date.toString().trim().split('T')[0];
-                            let dateParts = rawDate.split('-');
-                            let dateKey = rawDate;
-                            if (dateParts.length === 3) {
-                                const pYear = dateParts[0];
-                                const pMonth = String(dateParts[1]).padStart(2, '0');
-                                const pDay = String(dateParts[2]).padStart(2, '0');
-                                dateKey = `${pYear}-${pMonth}-${pDay}`;
-                            }
-                            if (!allBookingsMap[dateKey]) allBookingsMap[dateKey] = [];
+                            if (!allBookingsMap[rawDate]) allBookingsMap[rawDate] = [];
                             
                             let finalColor = item.box_color || '#27ae60';
                             if (item.status === 'pending' || !item.status) {
                                 finalColor = '#95a5a6';
                             }
-                            allBookingsMap[dateKey].push({
+                            allBookingsMap[rawDate].push({
                                 id: item.id,
                                 groomName: item.groom_name,
                                 hallName: item.hall_name,
@@ -427,43 +388,12 @@
             }
             renderCalendar();
             
-            if (supabaseClient && !window.realtimeInitialized) {
-                window.realtimeInitialized = true;
-                supabaseClient
-                  .channel('public:bookings_table')
-                  .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, payload => {
-                      if (currentUserRole === 'admin') {
-                          if (payload.eventType === 'INSERT') {
-                              let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
-                              triggerNewBookingAlert("حجز جديد!", `قام المستخدم (${currentUsername}) بإضافة حجز جديد (${groom}).`);
-                          } else if (payload.eventType === 'DELETE') {
-                              let groom = payload.old && payload.old.groom_name ? payload.old.groom_name : '';
-                              triggerNewBookingAlert("حذف حجز!", `قام المستخدم (${currentUsername}) بحذف حجز (${groom}) من النظام.`);
-                          } else if (payload.eventType === 'UPDATE') {
-                              let oldDate = payload.old && payload.old.booking_date ? payload.old.booking_date.toString().split('T')[0] : '';
-                              let newDate = payload.new && payload.new.booking_date ? payload.new.booking_date.toString().split('T')[0] : '';
-                              let groom = payload.new && payload.new.groom_name ? payload.new.groom_name : '';
-
-                              if (oldDate && newDate && oldDate !== newDate) {
-                                  triggerNewBookingAlert("نقل موعد حجز!", `تم نقل الحجز (${groom}) من تاريخ ${oldDate} إلى تاريخ ${newDate} من قبل المستخدم (${currentUsername}).`);
-                              } else {
-                                  triggerNewBookingAlert("تعديل حجز!", `قام المستخدم (${currentUsername}) بتعديل بيانات الحجز (${groom}).`);
-                              }
-                          }
-                      }
-                      initCalendarSystem(false);
-                  })
-                  .subscribe();
-            }
-
             if (currentUserRole === 'admin') {
                 fetchNotifications();
             }
         }
 
-        setInterval(() => {
-            initCalendarSystem(true);
-        }, 5000);
+        setInterval(() => { initCalendarSystem(true); }, 5000);
 
         function renderCalendar() {
             const year = currentDate.getFullYear();
@@ -488,7 +418,6 @@
                 emptyCell.className = 'day-cell';
                 emptyCell.style.background = '#fcfcfc';
                 emptyCell.style.border = 'none';
-                emptyCell.onclick = () => openModal('', []);
                 daysContainer.appendChild(emptyCell);
             }
             for (let day = 1; day <= totalDays; day++) {
@@ -527,7 +456,6 @@
             document.getElementById('bookingModal').style.display = 'flex';
         }
 
-        // بدء التشغيل عبر جلب معلومات المستخدم أولاً ثم بدء التقويم
         async function startApp() {
             await fetchUserDataFromSettings();
             initCalendarSystem(false);
