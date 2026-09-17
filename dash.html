@@ -47,7 +47,7 @@
             left: 0; 
             right: auto; 
             background: #fff; 
-            width: 250px; 
+            width: 280px; 
             max-width: 85vw; 
             box-shadow: 0px 8px 16px rgba(0,0,0,0.2); 
             z-index: 9999; 
@@ -207,6 +207,7 @@
         let lastBookingsCount = 0;
         let lastBookingsStateJSON = "";
         let swRegistration = null;
+        let globalSystemUsername = 'مستخدم';
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -223,17 +224,22 @@
         
         async function loadCustomUsername() {
             try {
-                const { data, error } = await supabaseClient
-                    .from('setting_table')
-                    .select('custom_user')
-                    .limit(1)
-                    .single();
+                // البحث عن اسم المستخدم في الذاكرة المحلية أولاً
+                let customName = localStorage.getItem('currentUsername') || localStorage.getItem('loggedUser') || '';
 
-                let customName = '';
-                if (!error && data && data.custom_user) {
-                    customName = data.custom_user;
+                if (!customName) {
+                    const { data, error } = await supabaseClient
+                        .from('setting_table')
+                        .select('custom_user')
+                        .limit(1)
+                        .single();
+
+                    if (!error && data && data.custom_user) {
+                        customName = data.custom_user;
+                    }
                 }
 
+                globalSystemUsername = customName || 'مستخدم';
                 const roleDisplay = document.getElementById('roleDisplay');
 
                 if (currentUserRole === 'admin') {
@@ -357,22 +363,10 @@
                         const currentStateJSON = JSON.stringify(data);
 
                         if (isBackgroundCheck && lastBookingsStateJSON !== "" && currentStateJSON !== lastBookingsStateJSON) {
-                            if (data.length > lastBookingsCount) {
-                                let title = "حجز عرس جديد!";
-                                let msg = "تمت إضافة وتخزين حجز عرس جديد في النظام.";
-                                triggerNewBookingAlert(title, msg);
-                                await createSystemNotification(title, msg);
-                            } else if (data.length < lastBookingsCount) {
-                                let title = "حذف حجز!";
-                                let msg = "تم حذف حجز من النظام.";
-                                triggerNewBookingAlert(title, msg);
-                                await createSystemNotification(title, msg);
-                            } else {
-                                let title = "تعديل حجز!";
-                                let msg = "تم تحديث وحفظ بيانات عقد أو حجز في النظام.";
-                                triggerNewBookingAlert(title, msg);
-                                await createSystemNotification(title, msg);
-                            }
+                            let title = "📝 تنبيه تعديل أو إضافة عقد";
+                            let msg = `قام المستخدم (${globalSystemUsername}) بتعديل أو إضافة عقد في النظام.`;
+                            triggerNewBookingAlert(title, msg);
+                            await createSystemNotification(title, msg, 'calendar.html');
                         }
 
                         lastBookingsCount = data.length;
@@ -416,21 +410,32 @@
                 supabaseClient
                   .channel('public:bookings_table')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings_table' }, async payload => {
-                      if (payload.eventType === 'INSERT') {
-                          let title = "حجز جديد!";
-                          let msg = "تمت إضافة وتخزين حجز عرس جديد الآن.";
+                      let eventType = payload.eventType;
+                      let newData = payload.new || payload.old;
+                      let groomName = newData ? (newData.groom_name || 'بدون اسم') : 'العقد';
+                      let bookingDate = newData ? (newData.booking_date ? newData.booking_date.split('T')[0] : '') : '';
+                      let bookingId = newData ? newData.id : '';
+
+                      let title = "";
+                      let msg = "";
+                      let targetLink = `contract.html?date=${bookingDate}&id=${bookingId}`;
+                      let activeUser = (newData && newData.updated_by) ? newData.updated_by : globalSystemUsername;
+
+                      if (eventType === 'INSERT') {
+                          title = "📝 تم حفظ مسودة عقد جديدة";
+                          msg = `قام المستخدم (${activeUser}) بحفظ عقد جديد للعريس (${groomName}) كـ مسودة (باللون الفضي).`;
+                      } else if (eventType === 'UPDATE') {
+                          title = "🔄 تم تعديل أو نقل مسودة عقد";
+                          msg = `قام المستخدم (${activeUser}) بتعديل أو نقل عقد العريس (${groomName}) وأصبح كمسودة.`;
+                      } else if (eventType === 'DELETE') {
+                          title = "🗑️ تم حذف عقد";
+                          msg = `قام المستخدم (${activeUser}) بحذف عقد من النظام.`;
+                          targetLink = 'calendar.html';
+                      }
+
+                      if (title) {
                           triggerNewBookingAlert(title, msg);
-                          await createSystemNotification(title, msg);
-                      } else if (payload.eventType === 'DELETE') {
-                          let title = "حذف حجز!";
-                          let msg = "تم حذف حجز من النظام الآن.";
-                          triggerNewBookingAlert(title, msg);
-                          await createSystemNotification(title, msg);
-                      } else if (payload.eventType === 'UPDATE') {
-                          let title = "تعديل حجز!";
-                          let msg = "تم تحديث وحفظ بيانات عقد أو حجز الآن.";
-                          triggerNewBookingAlert(title, msg);
-                          await createSystemNotification(title, msg);
+                          await createSystemNotification(title, msg, targetLink);
                       }
                       initCalendarSystem(false);
                   })
